@@ -98,6 +98,17 @@ def outliers(df):
     print(f"  sight == 9.9 (likely blind code): left {(df['sight_left'] == 9.9).sum():,}, right {(df['sight_right'] == 9.9).sum():,}")
 
 
+# Bin edges aligned to the column's measurement step (e.g. 5 for age, 1 for waistline, 0.1 for hemoglobin).
+# With a fixed bin count, the bin width drifts against that grid and some bins catch no values, which shows up as fake dips.
+def aligned_bins(values, max_bins=50):
+    step = next((s for s in [10, 5, 1, 0.5, 0.1, 0.01] if np.isclose(values / s, np.round(values / s)).mean() >= 0.8), None)
+    if step is None:
+        return max_bins
+    lo, hi = values.min(), values.max()
+    width = step * max(1, np.ceil((hi - lo) / step / max_bins))
+    return np.arange(lo - step / 2, hi + width, width)
+
+
 def plot_distributions(df):
     numeric = df.select_dtypes(include="number").drop(columns=["SMK_stat_type_cd"])
     # Clip at the 0.5/99.5 percentiles so extreme outliers do not flatten the histograms
@@ -106,7 +117,7 @@ def plot_distributions(df):
     n_rows = int(np.ceil(len(numeric.columns) / n_cols))
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(16, 3 * n_rows))
     for ax, col in zip(axes.flat, numeric.columns):
-        ax.hist(clipped[col], bins=50, color="steelblue")
+        ax.hist(clipped[col], bins=aligned_bins(clipped[col]), color="steelblue")
         ax.set_title(col)
     for ax in axes.flat[len(numeric.columns):]:
         ax.axis("off")
