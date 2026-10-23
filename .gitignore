@@ -18,6 +18,6 @@ __pycache__/
 *.joblib
 *.pt
 *.pth
-
+.DS_Store
 # .env
 .env
