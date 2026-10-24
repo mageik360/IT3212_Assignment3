@@ -1,5 +1,91 @@
+from copy import deepcopy
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
+
+
+@dataclass
+class PreprocessingState:
+    """Fitted parameters and schema; can be persisted with joblib.dump/load."""
+
+    input_columns: list[str]
+    feature_order: list[str]
+    placeholders: dict[str, list]
+    mappings: dict[str, dict]
+    categories: dict[str, list]
+    log_columns: list[str]
+    clip_bounds: dict[str, tuple[float, float]]
+    impute_values: dict[str, float]
+    scaling_params: dict[str, tuple[float, float]]
+    target_name: str
+    target_mapping: dict
+
+
+def _prepare_features(df, input_columns, placeholders, mappings, categories):
+    _check_columns(df, input_columns)
+    features = df.loc[:, input_columns].copy()
+    handle_placeholders(features, placeholders)
+    encode_columns(features, mappings)
+    one_hot_encode(features, categories)
+    return features
+
+
+def fit_preprocessor(
+    X_train: pd.DataFrame,
+    *,
+    placeholders: dict[str, list],
+    mappings: dict[str, dict],
+    categories: dict[str, list],
+    continuous_columns: list[str],
+    log_columns: list[str],
+    target_name: str,
+    target_mapping: dict,
+) -> PreprocessingState:
+    """Fit on raw training predictors only, without modifying the input."""
+    if target_name in X_train.columns:
+        raise ValueError(f"Remove target '{target_name}' before fitting preprocessing.")
+    features = _prepare_features(
+        X_train, list(X_train.columns), placeholders, mappings, categories
+    )
+    clip_bounds = compute_clip_bounds(features, continuous_columns)
+    clip_extreme_values(features, clip_bounds)
+    impute_values = compute_impute_values(features, list(placeholders))
+    impute_missing(features, impute_values)
+    log_transform(features, log_columns)
+    scaling_params = compute_scaling_params(features, continuous_columns)
+    return PreprocessingState(
+        input_columns=list(X_train.columns),
+        feature_order=list(features.columns),
+        placeholders=deepcopy(placeholders),
+        mappings=deepcopy(mappings),
+        categories=deepcopy(categories),
+        log_columns=list(log_columns),
+        clip_bounds=clip_bounds,
+        impute_values=impute_values,
+        scaling_params=scaling_params,
+        target_name=target_name,
+        target_mapping=deepcopy(target_mapping),
+    )
+
+
+def transform_features(
+    raw_features: pd.DataFrame, state: PreprocessingState
+) -> pd.DataFrame:
+    """Transform raw records using saved state, without fitting or dropping rows.
+
+    The target is not required. Extra columns are ignored; missing required
+    predictors raise an error. Input data and its row indices are preserved.
+    """
+    features = _prepare_features(
+        raw_features, state.input_columns, state.placeholders,
+        state.mappings, state.categories,
+    )
+    clip_extreme_values(features, state.clip_bounds)
+    impute_missing(features, state.impute_values)
+    log_transform(features, state.log_columns)
+    scale_columns(features, state.scaling_params)
+    return features.loc[:, state.feature_order]
 
 
 def _check_columns(df: pd.DataFrame, columns) -> None:

@@ -39,13 +39,15 @@ CONTINUOUS_COLUMNS = [
 
 
 def run_pipeline() -> tuple[
-    pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.Series, pd.Series, pd.Series
+    pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.Series, pd.Series, pd.Series,
+    pp.PreprocessingState,
 ]:
     """
     Load the dataset and run all preprocessing steps.
 
     Returns:
-    X_train, X_val, X_test, y_train, y_val, y_test: The 80/10/10 splits.
+    X_train, X_val, X_test, y_train, y_val, y_test, state: The 80/10/10
+    splits and fitted preprocessing state for transforming future raw records.
     X contains predictors (including smoking status); y contains encoded DRK_YN.
     Each X/y pair retains matching original row indices.
     """
@@ -54,12 +56,9 @@ def run_pipeline() -> tuple[
     # 1. Dataset-wide steps. These learn nothing from the data, so they are
     #    safe to run before splitting.
     pp.drop_duplicates(dataset)
-    pp.handle_placeholders(dataset, PLACEHOLDERS)
-    pp.encode_columns(dataset, ENCODINGS)
-    pp.one_hot_encode(dataset, CATEGORIES)
+    pp.encode_columns(dataset, {TARGET: ENCODINGS[TARGET]})
 
     # 2. Split into train, validation and test sets, stratified on the target.
-    #    .copy() so the in-place steps below do not touch shared memory.
     X = dataset.drop(columns=TARGET)
     y = dataset[TARGET].copy()
     X_train, X_temp, y_train, y_temp = train_test_split(
@@ -68,35 +67,28 @@ def run_pipeline() -> tuple[
     X_val, X_test, y_val, y_test = train_test_split(
         X_temp, y_temp, test_size=0.5, random_state=RANDOM_STATE, stratify=y_temp
     )
-    X_train, X_val, X_test = X_train.copy(), X_val.copy(), X_test.copy()
-    splits = (X_train, X_val, X_test)
+    # 3. Fit only on raw training predictors, then reuse exactly the same
+    #    transformation for all splits and future records.
+    state = pp.fit_preprocessor(
+        X_train,
+        placeholders=PLACEHOLDERS,
+        mappings={column: mapping for column, mapping in ENCODINGS.items()
+                  if column != TARGET},
+        categories=CATEGORIES,
+        continuous_columns=CONTINUOUS_COLUMNS,
+        log_columns=LOG_COLUMNS,
+        target_name=TARGET,
+        target_mapping=ENCODINGS[TARGET],
+    )
+    X_train = pp.transform_features(X_train, state)
+    X_val = pp.transform_features(X_val, state)
+    X_test = pp.transform_features(X_test, state)
 
-    # 3. Learned steps. Parameters are computed on the training set only,
-    #    then applied to all three sets.
+    return X_train, X_val, X_test, y_train, y_val, y_test, state
 
-    # 3a. Clip extreme values
-    clip_bounds = pp.compute_clip_bounds(X_train, CONTINUOUS_COLUMNS)
-    for split in splits:
-        pp.clip_extreme_values(split, clip_bounds)
-
-    # 3b. Impute missing values (from the placeholders) with the median
-    impute_values = pp.compute_impute_values(X_train, list(PLACEHOLDERS))
-    for split in splits:
-        pp.impute_missing(split, impute_values)
-
-    # 3c. Log transform skewed features (learns nothing, but must follow clipping)
-    for split in splits:
-        pp.log_transform(split, LOG_COLUMNS)
-
-    # 3d. Standardize. Must come last, so the parameters describe the final data.
-    scaling_params = pp.compute_scaling_params(X_train, CONTINUOUS_COLUMNS)
-    for split in splits:
-        pp.scale_columns(split, scaling_params)
-
-    return X_train, X_val, X_test, y_train, y_val, y_test
 
 def main():
-    X_train, X_val, X_test, y_train, y_val, y_test = run_pipeline()
+    X_train, X_val, X_test, y_train, y_val, y_test, state = run_pipeline()
     for name, X, y in [
         ("train", X_train, y_train),
         ("val", X_val, y_val),
