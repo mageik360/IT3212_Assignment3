@@ -38,7 +38,7 @@ CONTINUOUS_COLUMNS = [
 ]
 
 
-def run_pipeline() -> tuple[
+def run_pipeline(*, extract_derived_features: bool = True) -> tuple[
     pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.Series, pd.Series, pd.Series,
     pp.PreprocessingState,
 ]:
@@ -50,6 +50,8 @@ def run_pipeline() -> tuple[
     splits and fitted preprocessing state for transforming future raw records.
     X contains predictors (including smoking status); y contains encoded DRK_YN.
     Each X/y pair retains matching original row indices.
+    Five derived features are included by default. Set extract_derived_features
+    to False for a baseline comparison using the same splits.
     """
     dataset = load_dataset()
 
@@ -79,6 +81,7 @@ def run_pipeline() -> tuple[
         log_columns=LOG_COLUMNS,
         target_name=TARGET,
         target_mapping=ENCODINGS[TARGET],
+        extract_derived_features=extract_derived_features,
     )
     X_train = pp.transform_features(X_train, state)
     X_val = pp.transform_features(X_val, state)

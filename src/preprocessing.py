@@ -1,8 +1,10 @@
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
+
+from feature_engineering import DERIVED_COLUMNS, extract_features
 
 
 @dataclass
@@ -20,6 +22,8 @@ class PreprocessingState:
     scaling_params: dict[str, tuple[float, float]]
     target_name: str
     target_mapping: dict
+    extract_derived_features: bool = False
+    derived_impute_values: dict[str, float] = field(default_factory=dict)
 
 
 def _prepare_features(df, input_columns, placeholders, mappings, categories):
@@ -41,6 +45,7 @@ def fit_preprocessor(
     log_columns: list[str],
     target_name: str,
     target_mapping: dict,
+    extract_derived_features: bool = False,
 ) -> PreprocessingState:
     """Fit on raw training predictors only, without modifying the input."""
     if target_name in X_train.columns:
@@ -52,8 +57,17 @@ def fit_preprocessor(
     clip_extreme_values(features, clip_bounds)
     impute_values = compute_impute_values(features, list(placeholders))
     impute_missing(features, impute_values)
+    derived_impute_values = {}
+    scaling_columns = list(continuous_columns)
+    if extract_derived_features:
+        features = extract_features(features)
+        derived_impute_values = compute_impute_values(features, DERIVED_COLUMNS)
+        if not np.isfinite(list(derived_impute_values.values())).all():
+            raise ValueError("Cannot impute a derived feature with no valid training values.")
+        impute_missing(features, derived_impute_values)
+        scaling_columns.extend(DERIVED_COLUMNS)
     log_transform(features, log_columns)
-    scaling_params = compute_scaling_params(features, continuous_columns)
+    scaling_params = compute_scaling_params(features, scaling_columns)
     return PreprocessingState(
         input_columns=list(X_train.columns),
         feature_order=list(features.columns),
@@ -66,6 +80,8 @@ def fit_preprocessor(
         scaling_params=scaling_params,
         target_name=target_name,
         target_mapping=deepcopy(target_mapping),
+        extract_derived_features=extract_derived_features,
+        derived_impute_values=derived_impute_values,
     )
 
 
@@ -83,6 +99,9 @@ def transform_features(
     )
     clip_extreme_values(features, state.clip_bounds)
     impute_missing(features, state.impute_values)
+    if state.extract_derived_features:
+        features = extract_features(features)
+        impute_missing(features, state.derived_impute_values)
     log_transform(features, state.log_columns)
     scale_columns(features, state.scaling_params)
     return features.loc[:, state.feature_order]
