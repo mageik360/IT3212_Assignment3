@@ -38,12 +38,16 @@ CONTINUOUS_COLUMNS = [
 ]
 
 
-def run_pipeline() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def run_pipeline() -> tuple[
+    pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.Series, pd.Series, pd.Series
+]:
     """
     Load the dataset and run all preprocessing steps.
 
     Returns:
-    tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: Train, validation and test sets (80/10/10).
+    X_train, X_val, X_test, y_train, y_val, y_test: The 80/10/10 splits.
+    X contains predictors (including smoking status); y contains encoded DRK_YN.
+    Each X/y pair retains matching original row indices.
     """
     dataset = load_dataset()
 
@@ -56,25 +60,27 @@ def run_pipeline() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 
     # 2. Split into train, validation and test sets, stratified on the target.
     #    .copy() so the in-place steps below do not touch shared memory.
-    train_set, temp_set = train_test_split(
-        dataset, test_size=0.2, random_state=RANDOM_STATE, stratify=dataset[TARGET]
+    X = dataset.drop(columns=TARGET)
+    y = dataset[TARGET].copy()
+    X_train, X_temp, y_train, y_temp = train_test_split(
+        X, y, test_size=0.2, random_state=RANDOM_STATE, stratify=y
     )
-    val_set, test_set = train_test_split(
-        temp_set, test_size=0.5, random_state=RANDOM_STATE, stratify=temp_set[TARGET]
+    X_val, X_test, y_val, y_test = train_test_split(
+        X_temp, y_temp, test_size=0.5, random_state=RANDOM_STATE, stratify=y_temp
     )
-    train_set, val_set, test_set = train_set.copy(), val_set.copy(), test_set.copy()
-    splits = (train_set, val_set, test_set)
+    X_train, X_val, X_test = X_train.copy(), X_val.copy(), X_test.copy()
+    splits = (X_train, X_val, X_test)
 
     # 3. Learned steps. Parameters are computed on the training set only,
     #    then applied to all three sets.
 
     # 3a. Clip extreme values
-    clip_bounds = pp.compute_clip_bounds(train_set, CONTINUOUS_COLUMNS)
+    clip_bounds = pp.compute_clip_bounds(X_train, CONTINUOUS_COLUMNS)
     for split in splits:
         pp.clip_extreme_values(split, clip_bounds)
 
     # 3b. Impute missing values (from the placeholders) with the median
-    impute_values = pp.compute_impute_values(train_set, list(PLACEHOLDERS))
+    impute_values = pp.compute_impute_values(X_train, list(PLACEHOLDERS))
     for split in splits:
         pp.impute_missing(split, impute_values)
 
@@ -83,17 +89,21 @@ def run_pipeline() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         pp.log_transform(split, LOG_COLUMNS)
 
     # 3d. Standardize. Must come last, so the parameters describe the final data.
-    scaling_params = pp.compute_scaling_params(train_set, CONTINUOUS_COLUMNS)
+    scaling_params = pp.compute_scaling_params(X_train, CONTINUOUS_COLUMNS)
     for split in splits:
         pp.scale_columns(split, scaling_params)
 
-    return train_set, val_set, test_set
+    return X_train, X_val, X_test, y_train, y_val, y_test
 
 def main():
-    train_set, val_set, test_set = run_pipeline()
-    for name, split in [("train", train_set), ("val", val_set), ("test", test_set)]:
-        print(f"{name}: {len(split):,} rows, {split.isna().sum().sum()} missing, "
-              f"{split[TARGET].mean() * 100:.2f}% drinkers")
+    X_train, X_val, X_test, y_train, y_val, y_test = run_pipeline()
+    for name, X, y in [
+        ("train", X_train, y_train),
+        ("val", X_val, y_val),
+        ("test", X_test, y_test),
+    ]:
+        print(f"{name}: {len(X):,} rows, {X.isna().sum().sum()} missing predictors, "
+              f"{y.mean() * 100:.2f}% drinkers")
 
 if __name__ == "__main__":
     main()
