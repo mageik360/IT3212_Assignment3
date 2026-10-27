@@ -1,0 +1,15 @@
+Metadata-Version: 2.4
+Name: it3212-assignment3
+Version: 0.1.0
+Summary: Machine learning experiments on the smoking and drinking dataset
+Requires-Python: <3.13,>=3.12
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: scikit-learn
+Requires-Dist: scipy
+Requires-Dist: matplotlib
+Requires-Dist: seaborn
+Requires-Dist: torch
+Requires-Dist: tqdm
+Requires-Dist: joblib
+Requires-Dist: python-dotenv>=1.2.4
