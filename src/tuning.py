@@ -9,7 +9,7 @@ SCORING = ["roc_auc", "accuracy", "f1"]
 
 def tune_on_validation(
     estimator, param_grid: dict, X_train, y_train, X_val, y_val,
-    *, scoring=SCORING, refit: str = "roc_auc", verbose: int = 3,
+    *, scoring=SCORING, refit: str = "roc_auc", n_jobs: int = -1, verbose: int = 3,
 ) -> GridSearchCV:
     """
     Grid search over param_grid, scoring each candidate on the fixed validation
@@ -27,7 +27,7 @@ def tune_on_validation(
         scoring=scoring,
         refit=refit,
         cv=split,
-        n_jobs=-1,
+        n_jobs=n_jobs,
         verbose=verbose,
         return_train_score=True,
     )

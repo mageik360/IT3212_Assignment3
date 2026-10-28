@@ -109,3 +109,15 @@ def test_neural_network_main_dry_run(splits, monkeypatch, tmp_path, capsys):
     out = capsys.readouterr().out
     assert "Test metrics:" in out and "inference_seconds" in out
     assert (tmp_path / "neural_network_training.png").exists()
+
+
+def test_logistic_regression_main_dry_run(splits, monkeypatch, tmp_path, capsys):
+    import logistic_regression
+
+    monkeypatch.setattr(logistic_regression, "run_pipeline", lambda: (*splits, None))
+    monkeypatch.setattr(logistic_regression, "FIGURE_DIR", tmp_path)
+    monkeypatch.setattr(logistic_regression, "PARAM_GRID", {"poly__degree": [1, 2], "clf__C": [1]})
+    logistic_regression.main()
+    out = capsys.readouterr().out
+    assert "Linear vs polynomial" in out and "Test metrics:" in out
+    assert (tmp_path / "roc_curve.png").read_bytes().startswith(b"\x89PNG")

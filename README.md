@@ -26,6 +26,7 @@ Run scripts from the project root, e.g. `python src/decision_tree.py`.
 | `neural_network.py` | Baseline MLP, shared torch helpers and the shared `fit()` training loop |
 | `advanced_neural_network.py` | Deep MLP with random search (`--mode train/tune/compare`) |
 | `decision_tree.py` | Decision tree tuned on the validation split |
+| `logistic_regression.py` | Logistic regression, linear (degree 1) vs polynomial (degree 2) features tuned on the validation split |
 | `eda.py` | Exploratory analysis, see `EDA.md` |
 
 `classical_models.py`, `ensembles.py`, `feature_selection.py` and `transfer_learning.py` are empty placeholders.
