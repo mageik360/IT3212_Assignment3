@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -7,24 +5,18 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+from config import FIGURES_DIR, RANDOM_STATE
 from data import load_dataset
+from plotting import save_figure
 
-FIGURE_DIR = Path(__file__).resolve().parent.parent / "figures" / "eda"
+FIGURE_DIR = FIGURES_DIR / "eda"
 TARGETS = ["SMK_stat_type_cd", "DRK_YN"]
 SMOKING_LABELS = {1.0: "Never", 2.0: "Former", 3.0: "Current"}
 PLOT_SAMPLE_SIZE = 100_000
-RANDOM_STATE = 42
 
 
 def section(title):
     print(f"\n{'=' * 70}\n{title}\n{'=' * 70}")
-
-
-def save_figure(fig, name):
-    FIGURE_DIR.mkdir(parents=True, exist_ok=True)
-    fig.tight_layout()
-    fig.savefig(FIGURE_DIR / name, dpi=120)
-    plt.close(fig)
 
 
 # Overview: shape, types, memory usage
@@ -74,7 +66,7 @@ def target_distribution(df):
     sns.countplot(x=df["DRK_YN"], order=["N", "Y"], ax=axes[1])
     axes[1].set_title("Drinker")
     axes[1].set_xlabel("")
-    save_figure(fig, "target_distribution.png")
+    save_figure(fig, FIGURE_DIR / "target_distribution.png")
 
 
 # Outliers via the 1.5 * IQR rule, plus values far above the 99.9th percentile
@@ -121,7 +113,7 @@ def plot_distributions(df):
         ax.set_title(col)
     for ax in axes.flat[len(numeric.columns):]:
         ax.axis("off")
-    save_figure(fig, "numeric_distributions.png")
+    save_figure(fig, FIGURE_DIR / "numeric_distributions.png")
 
 
 def correlations(df):
@@ -143,7 +135,7 @@ def correlations(df):
     fig, ax = plt.subplots(figsize=(14, 12))
     sns.heatmap(corr, cmap="coolwarm", center=0, annot=True, fmt=".2f", annot_kws={"size": 7}, ax=ax)
     ax.set_title("Spearman correlation matrix")
-    save_figure(fig, "correlation_matrix.png")
+    save_figure(fig, FIGURE_DIR / "correlation_matrix.png")
 
 
 def plot_by_target(df):
@@ -158,7 +150,7 @@ def plot_by_target(df):
             sns.boxplot(data=sample[sample[col] <= upper], x=target, y=col, order=hue_order, showfliers=False, ax=ax)
             ax.set_title(col)
             ax.set_xlabel("")
-        save_figure(fig, f"features_by_{target}.png")
+        save_figure(fig, FIGURE_DIR / f"features_by_{target}.png")
 
     # Demographics: target rate by sex and age group
     section("DEMOGRAPHICS")
@@ -179,7 +171,7 @@ def plot_by_target(df):
     drink_rate.plot(marker="o", ax=axes[0], title="Drinker rate by age and sex")
     smoke_rate = df.assign(smoker=df["SMK_stat_type_cd"] == 3).groupby(["age", "sex"])["smoker"].mean().unstack()
     smoke_rate.plot(marker="o", ax=axes[1], title="Current smoker rate by age and sex")
-    save_figure(fig, "demographics.png")
+    save_figure(fig, FIGURE_DIR / "demographics.png")
 
 
 def main():

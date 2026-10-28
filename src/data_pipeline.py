@@ -1,11 +1,11 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
+from config import RANDOM_STATE
 from data import load_dataset
 import preprocessing as pp
 
 TARGET = "DRK_YN"
-RANDOM_STATE = 42
 
 # Placeholder codes that mean "missing", found during EDA
 PLACEHOLDERS = {
