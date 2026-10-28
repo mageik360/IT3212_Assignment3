@@ -1,5 +1,12 @@
+# Python 3.12
 matplotlib
-numpy 
+numpy
 pandas
 seaborn
-dotenv
+scikit-learn
+torch
+joblib
+python-dotenv
+
+# Dev
+pytest

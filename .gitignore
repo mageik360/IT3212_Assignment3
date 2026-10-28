@@ -12,6 +12,7 @@ __pycache__/
 .venv/
 .pytest_cache/
 .ipynb_checkpoints/
+*.egg-info/
 
 # Generated models
 *.pkl
