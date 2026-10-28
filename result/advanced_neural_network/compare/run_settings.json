@@ -1,0 +1,19 @@
+{
+  "mode": "compare",
+  "epochs": 50,
+  "trials": 30,
+  "patience": 10,
+  "seed": 42,
+  "device": "auto",
+  "output_dir": "/Users/magnus/Cursor/IT3212/Assignment3/IT3212_Assignment3/result/advanced_neural_network/compare",
+  "hidden_dims": [
+    256,
+    128,
+    64
+  ],
+  "dropout": 0.1,
+  "batch_norm": true,
+  "learning_rate": 0.001,
+  "weight_decay": 0.0001,
+  "batch_size": 1024
+}

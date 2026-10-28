@@ -1,0 +1,20 @@
+{
+  "best_epoch": 24,
+  "epochs_run": 34,
+  "training_seconds": 304.2646607909992,
+  "parameter_count": 49793,
+  "device": "mps",
+  "seed": 42,
+  "config": {
+    "hidden_dims": [
+      256,
+      128,
+      64
+    ],
+    "dropout": 0.2,
+    "batch_norm": true,
+    "learning_rate": 0.0006699104970185918,
+    "weight_decay": 1.6436161208875852e-05,
+    "batch_size": 1024
+  }
+}

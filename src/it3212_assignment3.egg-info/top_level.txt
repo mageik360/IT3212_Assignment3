@@ -1,0 +1,11 @@
+classical_models
+data
+data_pipeline
+eda
+ensembles
+evaluation
+feature_engineering
+feature_selection
+neural_network
+preprocessing
+transfer_learning
