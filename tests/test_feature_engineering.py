@@ -13,7 +13,7 @@ from preprocessing import fit_preprocessor, transform_features
 
 def measurements():
     return pd.DataFrame({
-        'height': [200., 160., 180.], 'weight': [100., 64., 81.],
+        'height': [200., 160., 180.], 'weight': [100., 70., 81.],
         'waistline': [100., 80., 90.], 'SGOT_AST': [40., 30., 20.],
         'SGOT_ALT': [20., 30., 40.], 'tot_chole': [200., 180., 220.],
         'HDL_chole': [50., 60., 70.], 'SBP': [120., 130., 140.],
@@ -65,12 +65,10 @@ def test_saved_state_uses_training_statistics_and_original_units(tmp_path):
     assert recovered == pytest.approx(state.impute_values['ast_alt_ratio'])
     train = transform_features(raw, loaded)
     assert train[DERIVED_COLUMNS].mean().to_numpy() == pytest.approx(np.zeros(5), abs=1e-10)
-    # Ratios are computed before AST and ALT are log-transformed.
-    lower, upper = state.clip_bounds['SGOT_AST']
-    ast = raw.loc[7, 'SGOT_AST'].clip(lower, upper)
-    lower, upper = state.clip_bounds['SGOT_ALT']
-    alt = raw.loc[7, 'SGOT_ALT'].clip(lower, upper)
-    assert train.loc[7, 'ast_alt_ratio'] * std + mean == pytest.approx(ast / alt)
+    # Ratios are computed from raw AST and ALT, then clipped with their own bounds.
+    lower, upper = state.clip_bounds['ast_alt_ratio']
+    ratio = (raw.loc[7, 'SGOT_AST'] / raw.loc[7, 'SGOT_ALT']).clip(lower, upper)
+    assert train.loc[7, 'ast_alt_ratio'] * std + mean == pytest.approx(ratio)
     baseline = fit_preprocessor(raw, **kwargs)
     assert not set(DERIVED_COLUMNS) & set(transform_features(raw, baseline).columns)
 
@@ -88,3 +86,29 @@ def test_placeholder_source_imputes_derived_median_not_derived_from_imputed():
     transformed = transform_features(raw, state)
     mean, std = state.scaling_params['waist_to_height_ratio']
     assert transformed.loc[19, 'waist_to_height_ratio'] * std + mean == pytest.approx(.6, abs=1e-3)
+
+
+def test_derived_features_use_unclipped_sources_and_are_clipped_themselves():
+    rng = np.random.default_rng(0)
+    n = 1000
+    raw = pd.DataFrame({
+        'height': 170., 'weight': 70., 'waistline': 85.,
+        'SGOT_AST': rng.uniform(20, 40, n), 'SGOT_ALT': rng.uniform(20, 40, n),
+        'tot_chole': 200., 'HDL_chole': 50., 'SBP': 120., 'DBP': 80.,
+    }, index=range(n))
+    # Both extreme, but with an ordinary ratio of 1.5
+    raw.loc[0, ['SGOT_AST', 'SGOT_ALT']] = [3000., 2000.]
+    # Ordinary AST over a near-zero ALT: an extreme ratio
+    raw.loc[1, ['SGOT_AST', 'SGOT_ALT']] = [40., .01]
+    kwargs = dict(placeholders={}, mappings={}, categories={},
+                  continuous_columns=list(raw.columns), log_columns=[],
+                  target_name='DRK_YN', target_mapping={'N': 0, 'Y': 1})
+    state = fit_preprocessor(raw, extract_derived_features=True, **kwargs)
+    assert set(DERIVED_COLUMNS) <= set(state.clip_bounds)
+    transformed = transform_features(raw, state)
+    mean, std = state.scaling_params['ast_alt_ratio']
+    ratio = transformed['ast_alt_ratio'] * std + mean
+    # Clipping AST and ALT first would have given roughly 1 instead
+    assert ratio[0] == pytest.approx(1.5)
+    assert ratio[1] == pytest.approx(state.clip_bounds['ast_alt_ratio'][1])
+    assert ratio[1] < 40 / .01

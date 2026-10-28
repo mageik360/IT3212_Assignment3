@@ -52,16 +52,14 @@ def fit_preprocessor(
     features = _prepare_features(
         X_train, list(X_train.columns), placeholders, mappings, categories
     )
-    clip_bounds = compute_clip_bounds(features, continuous_columns)
-    clip_extreme_values(features, clip_bounds)
     impute_columns = list(placeholders)
     scaling_columns = list(continuous_columns)
     if extract_derived_features:
-        # Derive before imputing, so a missing source gives a missing derived
-        # value that is filled with the derived feature's own median
         features = extract_features(features)
         impute_columns.extend(DERIVED_COLUMNS)
         scaling_columns.extend(DERIVED_COLUMNS)
+    clip_bounds = compute_clip_bounds(features, scaling_columns)
+    clip_extreme_values(features, clip_bounds)
     impute_values = compute_impute_values(features, impute_columns)
     if not np.isfinite(list(impute_values.values())).all():
         raise ValueError("Cannot impute a column with no valid training values.")
@@ -96,9 +94,9 @@ def transform_features(
         raw_features, state.input_columns, state.placeholders,
         state.mappings, state.categories,
     )
-    clip_extreme_values(features, state.clip_bounds)
     if state.extract_derived_features:
         features = extract_features(features)
+    clip_extreme_values(features, state.clip_bounds)
     impute_missing(features, state.impute_values)
     log_transform(features, state.log_columns)
     scale_columns(features, state.scaling_params)
