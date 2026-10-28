@@ -1,6 +1,8 @@
 """Task 5g: a baseline neural network for predicting DRK_YN (1 = drinker).
 
 Run from the project root: python src/neural_network.py --epochs 50
+Add --refit to train a fresh model on train + validation for the selected epoch
+count, replaying the selected learning-rate schedule. Preprocessing stays fixed.
 Uses the existing preprocessing and engineered features without fitting another
 scaler. A single hidden layer learns nonlinear feature interactions while keeping
 this baseline small; the deeper network and hyperparameter search belong to task 9.
@@ -96,12 +98,13 @@ def fit(
     optimizer: torch.optim.Optimizer,
     X_train: pd.DataFrame,
     y_train: pd.Series,
-    X_val: pd.DataFrame,
-    y_val: pd.Series,
+    X_val: pd.DataFrame | None,
+    y_val: pd.Series | None,
     *,
     batch_size: int,
     epochs: int,
     patience: int,
+    learning_rates: list[float] | None = None,
     random_state: int = RANDOM_STATE,
     verbose: bool = True,
 ):
@@ -111,13 +114,26 @@ def fit(
     after a validation-loss plateau; early stopping restores the best validation
     epoch, and default patience leaves time for the reduced rate to take effect.
     The test set is never used here. Returns (epoch history, training summary).
+    For fixed-duration refitting, supply one learning rate per epoch and pass
+    None for both validation arguments. This disables validation, scheduling
+    and early stopping; the final epoch is retained.
     """
     if min(epochs, batch_size, patience) < 1:
         raise ValueError("epochs, batch_size and patience must be positive.")
-    if not X_train.columns.equals(X_val.columns):
-        raise ValueError("Training and validation feature columns must match in order.")
+    if learning_rates is None:
+        if X_val is None or y_val is None:
+            raise ValueError("Validation data is required unless learning_rates is supplied.")
+        if not X_train.columns.equals(X_val.columns):
+            raise ValueError("Training and validation feature columns must match in order.")
+        val_data = make_dataset(X_val, y_val)
+    else:
+        if X_val is not None or y_val is not None:
+            raise ValueError("Fixed-schedule refit must not receive validation data.")
+        if (len(learning_rates) != epochs or not np.isfinite(learning_rates).all()
+                or any(rate <= 0 for rate in learning_rates)):
+            raise ValueError("learning_rates must contain one finite positive rate per epoch.")
+        val_data = None
     train_data = make_dataset(X_train, y_train)
-    val_data = make_dataset(X_val, y_val)
     device = next(model.parameters()).device
     # Keep the schema so evaluation cannot silently swap feature positions.
     model.feature_columns = list(X_train.columns)
@@ -125,9 +141,9 @@ def fit(
         train_data, batch_size=batch_size, shuffle=True,
         generator=torch.Generator().manual_seed(random_state),
     )
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    scheduler = (torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode="min", factor=0.5, patience=3, min_lr=1e-6,
-    )
+    ) if val_data is not None else None)
     criterion = nn.BCEWithLogitsLoss()
     batch_norms = [m for m in model.modules() if isinstance(m, nn.BatchNorm1d)]
     best_loss = float("inf")
@@ -140,6 +156,9 @@ def fit(
 
     for epoch in range(1, epochs + 1):
         model.train()
+        if learning_rates is not None:
+            for group in optimizer.param_groups:
+                group["lr"] = learning_rates[epoch - 1]
         epoch_lr = optimizer.param_groups[0]["lr"]
         loss_sum = 0.0
         for features, labels in loader:
@@ -153,8 +172,17 @@ def fit(
             loss.backward()
             optimizer.step()
             loss_sum += loss.item() * len(labels)
-        val_loss, _ = predict(model, val_data)
         train_loss = loss_sum / len(train_data)
+        if val_data is None:
+            if not np.isfinite(train_loss):
+                raise RuntimeError("Refit loss became non-finite; check training settings.")
+            history.append({"epoch": epoch, "train_loss": train_loss,
+                            "learning_rate": epoch_lr})
+            if verbose:
+                print(f"Refit epoch {epoch:03d}/{epochs}: train loss={train_loss:.4f}, "
+                      f"learning rate={epoch_lr:.2g}")
+            continue
+        val_loss, _ = predict(model, val_data)
         if not np.isfinite([train_loss, val_loss]).all():
             raise RuntimeError("Loss became non-finite; check training settings.")
         history.append({
@@ -175,11 +203,13 @@ def fit(
             if stale_epochs >= patience:
                 break
 
-    model.load_state_dict(best_state)
+    if best_state is not None:
+        model.load_state_dict(best_state)
     model.eval()
     synchronize(device)
     return pd.DataFrame(history), {
-        "best_epoch": best_epoch,
+        **({"best_epoch": best_epoch} if val_data is not None
+           else {"training_rows": len(train_data)}),
         "epochs_run": len(history),
         "training_seconds": perf_counter() - started,
         "parameter_count": sum(p.numel() for p in model.parameters()),
@@ -229,6 +259,44 @@ def train_model(
     return model, history, summary
 
 
+def refit_model(
+    X_train, y_train, X_val, y_val, *, selection_history,
+    hidden_dim=128, batch_size=1024, weight_decay=1e-4,
+    device="auto", random_state=RANDOM_STATE, verbose=True,
+):
+    """Refit a freshly initialized baseline on combined processed train/val data.
+
+    The lowest validation-loss epoch determines duration. Replay the learning
+    rates up to that epoch, without further validation or test evaluation.
+    Each epoch covers the larger dataset, so it includes more optimizer steps.
+    Returns (model, training-only history, refit summary).
+    """
+    if hidden_dim < 1 or not np.isfinite(weight_decay) or weight_decay < 0:
+        raise ValueError("hidden_dim must be positive and weight_decay finite/nonnegative.")
+    if not X_train.columns.equals(X_val.columns):
+        raise ValueError("Training and validation feature columns must match in order.")
+    make_dataset(X_train, y_train)
+    make_dataset(X_val, y_val)
+    required = ["epoch", "val_loss", "learning_rate"]
+    if selection_history.empty or not set(required).issubset(selection_history.columns):
+        raise ValueError("Selection history must contain epoch, val_loss and learning_rate.")
+    selected = selection_history[required].reset_index(drop=True)
+    if (not np.isfinite(selected.to_numpy()).all()
+            or not np.array_equal(selected.epoch, np.arange(1, len(selected) + 1))
+            or (selected.learning_rate <= 0).any()):
+        raise ValueError("Selection history requires consecutive epochs and finite losses/positive rates.")
+    rates = selected.learning_rate.iloc[:int(selected.val_loss.idxmin()) + 1].tolist()
+    torch.manual_seed(random_state)
+    model = NeuralNetwork(X_train.shape[1], hidden_dim).to(select_device(device))
+    optimizer = torch.optim.Adam(model.parameters(), lr=rates[0], weight_decay=weight_decay)
+    history, summary = fit(
+        model, optimizer, pd.concat([X_train, X_val]), pd.concat([y_train, y_val]),
+        None, None, batch_size=batch_size, epochs=len(rates), patience=1,
+        learning_rates=rates, random_state=random_state, verbose=verbose,
+    )
+    return model, history, summary
+
+
 def save_training_plots(history: pd.DataFrame, output_dir: Path) -> Path:
     """Save loss/LR curves and the underlying epoch history for later analysis.
 
@@ -244,10 +312,11 @@ def save_training_plots(history: pd.DataFrame, output_dir: Path) -> Path:
     FigureCanvasAgg(fig)
     loss_ax, lr_ax = fig.subplots(2, 1, sharex=True, height_ratios=[3, 1])
     loss_ax.plot(history.epoch, history.train_loss, label="Training (batch average)")
-    loss_ax.plot(history.epoch, history.val_loss, label="Validation")
-    best = history.loc[history.val_loss.idxmin()]
-    loss_ax.axvline(best.epoch, linestyle="--", color="gray",
-                    label=f"Best validation epoch: {int(best.epoch)}")
+    if "val_loss" in history:
+        loss_ax.plot(history.epoch, history.val_loss, label="Validation")
+        best = history.loc[history.val_loss.idxmin()]
+        loss_ax.axvline(best.epoch, linestyle="--", color="gray",
+                       label=f"Best validation epoch: {int(best.epoch)}")
     loss_ax.set(title="Neural network training", ylabel="Binary cross-entropy")
     loss_ax.legend()
     loss_ax.grid(alpha=0.25)
@@ -275,14 +344,16 @@ def evaluate_model(model: nn.Module, X: pd.DataFrame, y: pd.Series) -> dict:
     }
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--refit", action="store_true",
+                        help="Refit on train + validation for the selected epoch count.")
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=1024)
     parser.add_argument("--hidden-dim", type=int, default=128)
     parser.add_argument("--device", choices=["auto", "cuda", "mps", "cpu"], default="auto")
     parser.add_argument("--figures-dir", type=Path, default=FIGURES_DIR)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     X_train, X_val, X_test, y_train, y_val, y_test, _ = run_pipeline()
     print(f"Training with {len(X_train):,} rows and {X_train.shape[1]} features.")
     model, history, summary = train_model(
@@ -292,11 +363,23 @@ def main():
     )
     print(f"\nTraining plots saved to: {save_training_plots(history, args.figures_dir)}")
     print("\nTraining summary:", summary)
-    # Evaluate the held-out test set only after selecting the epoch on validation.
-    for split, X, y in [("Validation", X_val, y_val), ("Test", X_test, y_test)]:
-        print(f"\n{split} metrics:")
-        for metric, value in evaluate_model(model, X, y).items():
-            print(f"  {metric}: {value}")
+    print("\nValidation metrics (selection model, before any refit):")
+    for metric, value in evaluate_model(model, X_val, y_val).items():
+        print(f"  {metric}: {value}")
+    if args.refit:
+        print(f"\nRefitting on {len(X_train) + len(X_val):,} rows "
+              f"for {summary['best_epoch']} epochs.")
+        model, refit_history, refit_summary = refit_model(
+            X_train, y_train, X_val, y_val, selection_history=history,
+            hidden_dim=args.hidden_dim, batch_size=args.batch_size, device=args.device,
+        )
+        path = save_training_plots(refit_history, args.figures_dir / "refit")
+        print(f"\nRefit training plots saved to: {path}")
+        print("\nRefit summary:", refit_summary)
+    # Validation is training data after refit; evaluate only the untouched test set.
+    print("\nTest metrics" + (" (refitted model):" if args.refit else ":"))
+    for metric, value in evaluate_model(model, X_test, y_test).items():
+        print(f"  {metric}: {value}")
 
 
 if __name__ == "__main__":
