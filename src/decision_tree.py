@@ -103,6 +103,7 @@ def main():
 
     # Held-out test score, reported once for the refitted best model
     tree = search.best_estimator_
+    print(f"Best tree: {tree.get_n_leaves()} leaves, depth {tree.get_depth()}")
     print("\nTest:", {name: round(score, 4) for name, score in evaluate(tree, X_test, y_test).items()})
 
     importances = pd.Series(tree.feature_importances_, index=X_train.columns)
