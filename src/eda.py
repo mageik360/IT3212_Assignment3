@@ -10,13 +10,23 @@ from data import load_dataset
 from plotting import save_figure
 
 FIGURE_DIR = FIGURES_DIR / "eda"
-TARGETS = ["SMK_stat_type_cd", "DRK_YN"]
+TARGET = "DRK_YN"
+# Smoking status is a categorical predictor, not a numeric measurement
+SMOKING = "SMK_stat_type_cd"
 SMOKING_LABELS = {1.0: "Never", 2.0: "Former", 3.0: "Current"}
 PLOT_SAMPLE_SIZE = 100_000
 
 
 def section(title):
     print(f"\n{'=' * 70}\n{title}\n{'=' * 70}")
+
+
+def numeric_features(df):
+    return df.select_dtypes(include="number").drop(columns=[SMOKING])
+
+
+def drinker_rate(s):
+    return (s == "Y").mean() * 100
 
 
 # Overview: shape, types, memory usage
@@ -40,39 +50,57 @@ def data_quality(df):
 def summary_statistics(df):
     section("SUMMARY STATISTICS (numeric)")
     with pd.option_context("display.max_columns", None, "display.width", 200):
-        print(df.describe().T.round(2).to_string())
+        print(numeric_features(df).describe().T.round(2).to_string())
 
     section("CATEGORICAL COLUMNS")
-    for col in df.select_dtypes(include="object").columns:
+    for col in ["sex", SMOKING]:
         print(f"\n{col}:")
-        print(df[col].value_counts().to_string())
+        print(df[col].value_counts().sort_index().to_string())
 
 
 def target_distribution(df):
-    section("TARGET DISTRIBUTION")
-    for target in TARGETS:
-        counts = df[target].value_counts().sort_index()
-        share = (counts / len(df) * 100).round(2)
-        print(f"\n{target}:")
-        print(pd.DataFrame({"count": counts, "percent": share}).to_string())
+    section(f"TARGET DISTRIBUTION ({TARGET})")
+    counts = df[TARGET].value_counts().sort_index()
+    share = (counts / len(df) * 100).round(2)
+    print(pd.DataFrame({"count": counts, "percent": share}).to_string())
 
-    print("\nSmoking status vs drinking (row %):")
-    print((pd.crosstab(df["SMK_stat_type_cd"].map(SMOKING_LABELS), df["DRK_YN"], normalize="index") * 100).round(1).to_string())
+    fig, ax = plt.subplots(figsize=(5, 4))
+    sns.countplot(x=df[TARGET], order=["N", "Y"], ax=ax)
+    ax.set_title("Drinker")
+    ax.set_xlabel("")
+    save_figure(fig, FIGURE_DIR / "target_distribution.png")
 
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
-    sns.countplot(x=df["SMK_stat_type_cd"].map(SMOKING_LABELS), order=SMOKING_LABELS.values(), ax=axes[0])
+
+# Smoking status as a predictor of drinking, and how much of it is explained by sex
+def smoking_feature(df):
+    section("SMOKING STATUS AS A FEATURE")
+    smoking = df[SMOKING].map(SMOKING_LABELS)
+    order = list(SMOKING_LABELS.values())
+
+    print("Drinker rate by smoking status (%):")
+    print(df.groupby(smoking)[TARGET].agg(drinker=drinker_rate, n="size").reindex(order).round(1).to_string())
+
+    print("\nSmoking status by sex (row %):")
+    print((pd.crosstab(df["sex"], smoking, normalize="index") * 100)[order].round(1).to_string())
+
+    print("\nDrinker rate by smoking status within each sex (%):")
+    by_sex = df.groupby(["sex", smoking])[TARGET].agg(drinker_rate).unstack()[order]
+    print(by_sex.round(1).to_string())
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    sns.countplot(x=smoking, order=order, ax=axes[0])
     axes[0].set_title("Smoking status")
     axes[0].set_xlabel("")
-    sns.countplot(x=df["DRK_YN"], order=["N", "Y"], ax=axes[1])
-    axes[1].set_title("Drinker")
+    by_sex.T.plot(kind="bar", ax=axes[1], rot=0)
+    axes[1].set_title("Drinker rate (%) by smoking status and sex")
     axes[1].set_xlabel("")
-    save_figure(fig, FIGURE_DIR / "target_distribution.png")
+    save_figure(fig, FIGURE_DIR / "smoking_vs_drinking.png")
 
 
 # Outliers via the 1.5 * IQR rule, plus values far above the 99.9th percentile
 def outliers(df):
     section("OUTLIERS (1.5 * IQR rule)")
-    numeric = df.select_dtypes(include="number").drop(columns=["SMK_stat_type_cd"])
+    numeric = numeric_features(df)
     q1, q3 = numeric.quantile(0.25), numeric.quantile(0.75)
     iqr = q3 - q1
     mask = (numeric < q1 - 1.5 * iqr) | (numeric > q3 + 1.5 * iqr)
@@ -88,6 +116,8 @@ def outliers(df):
     print("\nSuspicious values:")
     print(f"  waistline == 999: {(df['waistline'] == 999).sum():,}")
     print(f"  sight == 9.9 (likely blind code): left {(df['sight_left'] == 9.9).sum():,}, right {(df['sight_right'] == 9.9).sum():,}")
+    print(f"  drinker rate where waistline == 999: {drinker_rate(df.loc[df['waistline'] == 999, TARGET]):.1f}%")
+    print(f"  drinker rate where sight_left == 9.9: {drinker_rate(df.loc[df['sight_left'] == 9.9, TARGET]):.1f}%")
 
 
 # Bin edges aligned to the column's measurement step (e.g. 5 for age, 1 for waistline, 0.1 for hemoglobin).
@@ -102,7 +132,7 @@ def aligned_bins(values, max_bins=50):
 
 
 def plot_distributions(df):
-    numeric = df.select_dtypes(include="number").drop(columns=["SMK_stat_type_cd"])
+    numeric = numeric_features(df)
     # Clip at the 0.5/99.5 percentiles so extreme outliers do not flatten the histograms
     clipped = numeric.clip(numeric.quantile(0.005), numeric.quantile(0.995), axis=1)
     n_cols = 4
@@ -120,15 +150,16 @@ def correlations(df):
     section("CORRELATIONS")
     encoded = df.copy()
     encoded["sex"] = (encoded["sex"] == "Male").astype(int)
-    encoded["DRK_YN"] = (encoded["DRK_YN"] == "Y").astype(int)
+    encoded[TARGET] = (encoded[TARGET] == "Y").astype(int)
+    # Never < former < current, so the code is usable as an ordinal in a rank correlation
     corr = encoded.corr(method="spearman")
 
-    for target in TARGETS:
-        print(f"\nSpearman correlation with {target} (top 10 by |r|):")
-        target_corr = corr[target].drop(target)
-        print(target_corr.reindex(target_corr.abs().sort_values(ascending=False).index).head(10).round(3).to_string())
+    print(f"\nSpearman correlation with {TARGET} (all features, by |r|):")
+    target_corr = corr[TARGET].drop(TARGET)
+    print(target_corr.reindex(target_corr.abs().sort_values(ascending=False).index).round(3).to_string())
 
-    upper = corr.where(np.triu(np.ones(corr.shape, dtype=bool), k=1)).stack()
+    features = corr.drop(index=TARGET, columns=TARGET)
+    upper = features.where(np.triu(np.ones(features.shape, dtype=bool), k=1)).stack()
     print("\nStrongly correlated feature pairs (|r| > 0.7):")
     print(upper[upper.abs() > 0.7].sort_values(key=abs, ascending=False).round(3).to_string())
 
@@ -138,39 +169,63 @@ def correlations(df):
     save_figure(fig, FIGURE_DIR / "correlation_matrix.png")
 
 
+# Per-feature class separation: medians per class and standardized mean difference (Cohen's d)
+def feature_separation(df):
+    section(f"FEATURE SEPARATION BY {TARGET}")
+    numeric = numeric_features(df)
+    clipped = numeric.clip(numeric.quantile(0.001), numeric.quantile(0.999), axis=1)
+    drinker = df[TARGET] == "Y"
+    yes, no = clipped[drinker], clipped[~drinker]
+    pooled_std = np.sqrt((yes.var() + no.var()) / 2)
+    result = pd.DataFrame({
+        "median_N": no.median(),
+        "median_Y": yes.median(),
+        "cohens_d": (yes.mean() - no.mean()) / pooled_std,
+    })
+    print(result.reindex(result["cohens_d"].abs().sort_values(ascending=False).index).round(3).to_string())
+
+    # Same comparison within each sex, to see what is left after removing the sex effect
+    print("\nCohen's d within each sex:")
+    within = {}
+    for sex, group in clipped.groupby(df["sex"]):
+        g_drinker = drinker[group.index]
+        g_yes, g_no = group[g_drinker], group[~g_drinker]
+        within[sex] = (g_yes.mean() - g_no.mean()) / np.sqrt((g_yes.var() + g_no.var()) / 2)
+    within = pd.DataFrame(within)
+    print(within.reindex(within.abs().max(axis=1).sort_values(ascending=False).index).round(3).to_string())
+
+
 def plot_by_target(df):
     sample = df.sample(min(PLOT_SAMPLE_SIZE, len(df)), random_state=RANDOM_STATE)
-    sample = sample.assign(smoking=sample["SMK_stat_type_cd"].map(SMOKING_LABELS))
-    features = ["age", "height", "weight", "waistline", "hemoglobin", "gamma_GTP", "SGOT_ALT", "HDL_chole"]
+    features = ["age", "height", "weight", "hemoglobin", "gamma_GTP", "serum_creatinine", "HDL_chole", "SGOT_ALT"]
 
-    for target, hue_order in [("DRK_YN", ["N", "Y"]), ("smoking", list(SMOKING_LABELS.values()))]:
-        fig, axes = plt.subplots(2, 4, figsize=(16, 8))
-        for ax, col in zip(axes.flat, features):
-            upper = sample[col].quantile(0.99)
-            sns.boxplot(data=sample[sample[col] <= upper], x=target, y=col, order=hue_order, showfliers=False, ax=ax)
-            ax.set_title(col)
-            ax.set_xlabel("")
-        save_figure(fig, FIGURE_DIR / f"features_by_{target}.png")
+    fig, axes = plt.subplots(2, 4, figsize=(16, 8))
+    for ax, col in zip(axes.flat, features):
+        upper = sample[col].quantile(0.99)
+        sns.boxplot(data=sample[sample[col] <= upper], x="sex", y=col, hue=TARGET, hue_order=["N", "Y"],
+                    order=["Female", "Male"], showfliers=False, ax=ax)
+        ax.set_title(col)
+        ax.set_xlabel("")
+    save_figure(fig, FIGURE_DIR / f"features_by_{TARGET}.png")
 
-    # Demographics: target rate by sex and age group
+
+# Demographics: drinker rate by sex, age and smoking status
+def demographics(df):
     section("DEMOGRAPHICS")
-    print("Target rates by sex (%):")
-    print(df.groupby("sex").agg(
-        drinker=("DRK_YN", lambda s: (s == "Y").mean() * 100),
-        current_smoker=("SMK_stat_type_cd", lambda s: (s == 3).mean() * 100),
-    ).round(1).to_string())
-    print("\nTarget rates by age (%):")
-    print(df.groupby("age").agg(
-        drinker=("DRK_YN", lambda s: (s == "Y").mean() * 100),
-        current_smoker=("SMK_stat_type_cd", lambda s: (s == 3).mean() * 100),
-        n=("age", "size"),
-    ).round(1).to_string())
+    print("Drinker rate by sex (%):")
+    print(df.groupby("sex")[TARGET].agg(drinker=drinker_rate, n="size").round(1).to_string())
+    print("\nDrinker rate by age (%):")
+    print(df.groupby("age")[TARGET].agg(drinker=drinker_rate, n="size").round(1).to_string())
+
+    smoking = df[SMOKING].map(SMOKING_LABELS)
+    print("\nMedian age by smoking status:")
+    print(df.groupby(smoking)["age"].median().reindex(SMOKING_LABELS.values()).to_string())
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-    drink_rate = df.assign(drinker=df["DRK_YN"] == "Y").groupby(["age", "sex"])["drinker"].mean().unstack()
-    drink_rate.plot(marker="o", ax=axes[0], title="Drinker rate by age and sex")
-    smoke_rate = df.assign(smoker=df["SMK_stat_type_cd"] == 3).groupby(["age", "sex"])["smoker"].mean().unstack()
-    smoke_rate.plot(marker="o", ax=axes[1], title="Current smoker rate by age and sex")
+    df.groupby(["age", "sex"])[TARGET].agg(drinker_rate).unstack().plot(
+        marker="o", ax=axes[0], title="Drinker rate (%) by age and sex")
+    df.groupby(["age", smoking])[TARGET].agg(drinker_rate).unstack()[list(SMOKING_LABELS.values())].plot(
+        marker="o", ax=axes[1], title="Drinker rate (%) by age and smoking status")
     save_figure(fig, FIGURE_DIR / "demographics.png")
 
 
@@ -180,10 +235,13 @@ def main():
     data_quality(df)
     summary_statistics(df)
     target_distribution(df)
+    smoking_feature(df)
     outliers(df)
     correlations(df)
+    feature_separation(df)
     plot_distributions(df)
     plot_by_target(df)
+    demographics(df)
     print(f"\nFigures saved to {FIGURE_DIR}")
 
 
