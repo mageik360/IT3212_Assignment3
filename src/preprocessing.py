@@ -1,5 +1,5 @@
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -23,7 +23,6 @@ class PreprocessingState:
     target_name: str
     target_mapping: dict
     extract_derived_features: bool = False
-    derived_impute_values: dict[str, float] = field(default_factory=dict)
 
 
 def _prepare_features(df, input_columns, placeholders, mappings, categories):
@@ -55,17 +54,18 @@ def fit_preprocessor(
     )
     clip_bounds = compute_clip_bounds(features, continuous_columns)
     clip_extreme_values(features, clip_bounds)
-    impute_values = compute_impute_values(features, list(placeholders))
-    impute_missing(features, impute_values)
-    derived_impute_values = {}
+    impute_columns = list(placeholders)
     scaling_columns = list(continuous_columns)
     if extract_derived_features:
+        # Derive before imputing, so a missing source gives a missing derived
+        # value that is filled with the derived feature's own median
         features = extract_features(features)
-        derived_impute_values = compute_impute_values(features, DERIVED_COLUMNS)
-        if not np.isfinite(list(derived_impute_values.values())).all():
-            raise ValueError("Cannot impute a derived feature with no valid training values.")
-        impute_missing(features, derived_impute_values)
+        impute_columns.extend(DERIVED_COLUMNS)
         scaling_columns.extend(DERIVED_COLUMNS)
+    impute_values = compute_impute_values(features, impute_columns)
+    if not np.isfinite(list(impute_values.values())).all():
+        raise ValueError("Cannot impute a column with no valid training values.")
+    impute_missing(features, impute_values)
     log_transform(features, log_columns)
     scaling_params = compute_scaling_params(features, scaling_columns)
     return PreprocessingState(
@@ -81,7 +81,6 @@ def fit_preprocessor(
         target_name=target_name,
         target_mapping=deepcopy(target_mapping),
         extract_derived_features=extract_derived_features,
-        derived_impute_values=derived_impute_values,
     )
 
 
@@ -98,10 +97,9 @@ def transform_features(
         state.mappings, state.categories,
     )
     clip_extreme_values(features, state.clip_bounds)
-    impute_missing(features, state.impute_values)
     if state.extract_derived_features:
         features = extract_features(features)
-        impute_missing(features, state.derived_impute_values)
+    impute_missing(features, state.impute_values)
     log_transform(features, state.log_columns)
     scale_columns(features, state.scaling_params)
     return features.loc[:, state.feature_order]

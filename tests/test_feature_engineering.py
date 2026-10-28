@@ -62,7 +62,7 @@ def test_saved_state_uses_training_statistics_and_original_units(tmp_path):
     assert transformed.index.equals(prediction.index)
     mean, std = state.scaling_params['ast_alt_ratio']
     recovered = transformed.loc[7, 'ast_alt_ratio'] * std + mean
-    assert recovered == pytest.approx(state.derived_impute_values['ast_alt_ratio'])
+    assert recovered == pytest.approx(state.impute_values['ast_alt_ratio'])
     train = transform_features(raw, loaded)
     assert train[DERIVED_COLUMNS].mean().to_numpy() == pytest.approx(np.zeros(5), abs=1e-10)
     # Ratios are computed before AST and ALT are log-transformed.
@@ -73,3 +73,18 @@ def test_saved_state_uses_training_statistics_and_original_units(tmp_path):
     assert train.loc[7, 'ast_alt_ratio'] * std + mean == pytest.approx(ast / alt)
     baseline = fit_preprocessor(raw, **kwargs)
     assert not set(DERIVED_COLUMNS) & set(transform_features(raw, baseline).columns)
+
+
+def test_placeholder_source_imputes_derived_median_not_derived_from_imputed():
+    raw = measurements()
+    raw['waistline'] = [140., 80., 999.]
+    kwargs = dict(placeholders={'waistline': [999]}, mappings={}, categories={},
+                  continuous_columns=list(raw.columns), log_columns=[],
+                  target_name='DRK_YN', target_mapping={'N': 0, 'Y': 1})
+    state = fit_preprocessor(raw, extract_derived_features=True, **kwargs)
+    # Median of the observed ratios (0.7, 0.5), not median waist / own height (110 / 180);
+    # tolerance allows for clipping pulling waist 140 slightly down
+    assert state.impute_values['waist_to_height_ratio'] == pytest.approx(.6, abs=1e-3)
+    transformed = transform_features(raw, state)
+    mean, std = state.scaling_params['waist_to_height_ratio']
+    assert transformed.loc[19, 'waist_to_height_ratio'] * std + mean == pytest.approx(.6, abs=1e-3)
