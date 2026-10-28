@@ -140,7 +140,9 @@ def test_cli_smoke_and_artifacts(data, monkeypatch, tmp_path, mode):
 
 
 def test_plateau_reduces_lr_and_stops(data, monkeypatch):
-    monkeypatch.setattr(advanced, "predict", lambda *args: (0.7, np.zeros(60)))
+    import neural_network
+
+    monkeypatch.setattr(neural_network, "predict", lambda *args: (0.7, np.zeros(60)))
     _, history, summary = advanced.train_model(
         *data,
         config=advanced.ModelConfig(hidden_dims=(8, 4)),

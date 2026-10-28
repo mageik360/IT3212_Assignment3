@@ -14,14 +14,13 @@ from time import perf_counter
 import numpy as np
 import pandas as pd
 import torch
-from sklearn.metrics import (
-    accuracy_score, confusion_matrix, f1_score, precision_score, recall_score,
-    roc_auc_score,
-)
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from data_pipeline import RANDOM_STATE, run_pipeline
+from config import FIGURES_DIR, RANDOM_STATE
+from data_pipeline import run_pipeline
+from evaluation import compute_metrics
+from plotting import save_figure
 
 
 def select_device(name: str = "auto") -> torch.device:
@@ -92,6 +91,102 @@ def predict(model: NeuralNetwork, dataset: TensorDataset, batch_size: int = 4096
     return loss_sum / len(dataset), np.concatenate(probabilities)
 
 
+def fit(
+    model: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    X_train: pd.DataFrame,
+    y_train: pd.Series,
+    X_val: pd.DataFrame,
+    y_val: pd.Series,
+    *,
+    batch_size: int,
+    epochs: int,
+    patience: int,
+    random_state: int = RANDOM_STATE,
+    verbose: bool = True,
+):
+    """Shared training loop for any binary-logit network already on its device.
+
+    Mini-batches limit memory use on this large dataset. Halve the learning rate
+    after a validation-loss plateau; early stopping restores the best validation
+    epoch, and default patience leaves time for the reduced rate to take effect.
+    The test set is never used here. Returns (epoch history, training summary).
+    """
+    if min(epochs, batch_size, patience) < 1:
+        raise ValueError("epochs, batch_size and patience must be positive.")
+    if not X_train.columns.equals(X_val.columns):
+        raise ValueError("Training and validation feature columns must match in order.")
+    train_data = make_dataset(X_train, y_train)
+    val_data = make_dataset(X_val, y_val)
+    device = next(model.parameters()).device
+    # Keep the schema so evaluation cannot silently swap feature positions.
+    model.feature_columns = list(X_train.columns)
+    loader = DataLoader(
+        train_data, batch_size=batch_size, shuffle=True,
+        generator=torch.Generator().manual_seed(random_state),
+    )
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="min", factor=0.5, patience=3, min_lr=1e-6,
+    )
+    criterion = nn.BCEWithLogitsLoss()
+    batch_norms = [m for m in model.modules() if isinstance(m, nn.BatchNorm1d)]
+    best_loss = float("inf")
+    best_state = None
+    best_epoch = 0
+    stale_epochs = 0
+    history = []
+    synchronize(device)
+    started = perf_counter()
+
+    for epoch in range(1, epochs + 1):
+        model.train()
+        epoch_lr = optimizer.param_groups[0]["lr"]
+        loss_sum = 0.0
+        for features, labels in loader:
+            features, labels = features.to(device), labels.to(device)
+            # A singleton has no batch variance: use running statistics for BN
+            # only, retaining dropout and gradients and never discarding a row.
+            for module in batch_norms:
+                module.train(len(labels) > 1)
+            optimizer.zero_grad()
+            loss = criterion(model(features), labels)
+            loss.backward()
+            optimizer.step()
+            loss_sum += loss.item() * len(labels)
+        val_loss, _ = predict(model, val_data)
+        train_loss = loss_sum / len(train_data)
+        if not np.isfinite([train_loss, val_loss]).all():
+            raise RuntimeError("Loss became non-finite; check training settings.")
+        history.append({
+            "epoch": epoch, "train_loss": train_loss,
+            "val_loss": val_loss, "learning_rate": epoch_lr,
+        })
+        if verbose:
+            print(f"Epoch {epoch:03d}: train loss={train_loss:.4f}, "
+                  f"validation loss={val_loss:.4f}, learning rate={epoch_lr:.2g}")
+        scheduler.step(val_loss)
+        if val_loss < best_loss:
+            best_loss = val_loss
+            best_state = deepcopy(model.state_dict())
+            best_epoch = epoch
+            stale_epochs = 0
+        else:
+            stale_epochs += 1
+            if stale_epochs >= patience:
+                break
+
+    model.load_state_dict(best_state)
+    model.eval()
+    synchronize(device)
+    return pd.DataFrame(history), {
+        "best_epoch": best_epoch,
+        "epochs_run": len(history),
+        "training_seconds": perf_counter() - started,
+        "parameter_count": sum(p.numel() for p in model.parameters()),
+        "device": str(device),
+    }
+
+
 def train_model(
     X_train: pd.DataFrame,
     y_train: pd.Series,
@@ -108,91 +203,30 @@ def train_model(
     random_state: int = RANDOM_STATE,
     verbose: bool = True,
 ):
-    """Train on the selected device and restore the best validation epoch.
+    """Train the baseline on the selected device; see fit() for the loop.
 
-    Adam is a practical initial optimizer; mini-batches limit memory use on this
-    large dataset. Small L2 regularization and early stopping limit overfitting.
-    Defaults are starting choices, not tuned results. The test set is never used
-    here. Returns (model, epoch history, training summary).
-    Halve the learning rate after a validation-loss plateau; default early
-    stopping patience leaves time for the reduced learning rate to take effect.
+    Adam is a practical initial optimizer; small L2 regularization and early
+    stopping limit overfitting. Defaults are starting choices, not tuned results.
+    Returns (model, epoch history, training summary).
     """
-    if min(hidden_dim, epochs, batch_size, patience) < 1:
-        raise ValueError("hidden_dim, epochs, batch_size and patience must be positive.")
+    if hidden_dim < 1:
+        raise ValueError("hidden_dim must be positive.")
     if learning_rate <= 0 or weight_decay < 0:
         raise ValueError("learning_rate must be positive and weight_decay nonnegative.")
-    if not X_train.columns.equals(X_val.columns):
-        raise ValueError("Training and validation feature columns must match in order.")
-    train_data = make_dataset(X_train, y_train)
-    val_data = make_dataset(X_val, y_val)
     torch.manual_seed(random_state)
     device = select_device(device)
     model = NeuralNetwork(X_train.shape[1], hidden_dim).to(device)
     if verbose:
         print(f"Device: {device}; hidden units: {hidden_dim}")
-    # Keep the schema so evaluation cannot silently swap feature positions.
-    model.feature_columns = list(X_train.columns)
-    loader = DataLoader(
-        train_data, batch_size=batch_size, shuffle=True,
-        generator=torch.Generator().manual_seed(random_state),
-    )
     optimizer = torch.optim.Adam(
         model.parameters(), lr=learning_rate, weight_decay=weight_decay,
     )
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="min", factor=0.5, patience=3, min_lr=1e-6,
+    history, summary = fit(
+        model, optimizer, X_train, y_train, X_val, y_val,
+        batch_size=batch_size, epochs=epochs, patience=patience,
+        random_state=random_state, verbose=verbose,
     )
-    criterion = nn.BCEWithLogitsLoss()
-    best_loss = float("inf")
-    best_state = None
-    best_epoch = 0
-    stale_epochs = 0
-    history = []
-    synchronize(device)
-    started = perf_counter()
-
-    for epoch in range(1, epochs + 1):
-        model.train()
-        epoch_lr = optimizer.param_groups[0]["lr"]
-        loss_sum = 0.0
-        for features, labels in loader:
-            features, labels = features.to(device), labels.to(device)
-            optimizer.zero_grad()
-            loss = criterion(model(features), labels)
-            loss.backward()
-            optimizer.step()
-            loss_sum += loss.item() * len(labels)
-        val_loss, _ = predict(model, val_data)
-        history.append({
-            "epoch": epoch, "train_loss": loss_sum / len(train_data),
-            "val_loss": val_loss, "learning_rate": epoch_lr,
-        })
-        if verbose:
-            print(f"Epoch {epoch:02d}: train loss={history[-1]['train_loss']:.4f}, "
-                  f"validation loss={val_loss:.4f}, learning rate={epoch_lr:.2g}")
-        if not np.isfinite(val_loss):
-            raise RuntimeError("Validation loss became non-finite; check training settings.")
-        scheduler.step(val_loss)
-        if val_loss < best_loss:
-            best_loss = val_loss
-            best_state = deepcopy(model.state_dict())
-            best_epoch = epoch
-            stale_epochs = 0
-        else:
-            stale_epochs += 1
-            if stale_epochs >= patience:
-                break
-
-    model.load_state_dict(best_state)
-    model.eval()
-    synchronize(device)
-    return model, pd.DataFrame(history), {
-        "best_epoch": best_epoch,
-        "epochs_run": len(history),
-        "training_seconds": perf_counter() - started,
-        "parameter_count": sum(p.numel() for p in model.parameters()),
-        "device": str(device),
-    }
+    return model, history, summary
 
 
 def save_training_plots(history: pd.DataFrame, output_dir: Path) -> Path:
@@ -220,19 +254,13 @@ def save_training_plots(history: pd.DataFrame, output_dir: Path) -> Path:
     lr_ax.step(history.epoch, history.learning_rate, where="post")
     lr_ax.set(xlabel="Epoch", ylabel="Learning rate", yscale="log")
     lr_ax.grid(alpha=0.25)
-    path = output_dir / "neural_network_training.png"
-    fig.savefig(path, dpi=160)
+    path = save_figure(fig, output_dir / "neural_network_training.png", dpi=160)
     history.to_csv(output_dir / "neural_network_history.csv", index=False)
     return path
 
 
-def evaluate_model(model: NeuralNetwork, X: pd.DataFrame, y: pd.Series) -> dict:
-    """Evaluate with a fixed 0.5 threshold; confusion matrix order is [0, 1].
-
-    Accuracy measures overall correctness, precision/recall/F1 describe the
-    drinker class, and ROC AUC measures ranking across thresholds. These support
-    later comparisons with the classical models and ensembles.
-    """
+def evaluate_model(model: nn.Module, X: pd.DataFrame, y: pd.Series) -> dict:
+    """Shared metrics from evaluation.compute_metrics, plus loss and inference time."""
     if list(X.columns) != model.feature_columns:
         raise ValueError("Evaluation feature columns must match training order.")
     dataset = make_dataset(X, y)
@@ -240,15 +268,9 @@ def evaluate_model(model: NeuralNetwork, X: pd.DataFrame, y: pd.Series) -> dict:
     started = perf_counter()
     loss, probabilities = predict(model, dataset)
     inference_seconds = perf_counter() - started
-    predictions = (probabilities >= 0.5).astype(int)
     return {
         "loss": loss,
-        "accuracy": accuracy_score(y, predictions),
-        "precision": precision_score(y, predictions, zero_division=0),
-        "recall": recall_score(y, predictions, zero_division=0),
-        "f1": f1_score(y, predictions, zero_division=0),
-        "roc_auc": roc_auc_score(y, probabilities) if y.nunique() == 2 else float("nan"),
-        "confusion_matrix": confusion_matrix(y, predictions, labels=[0, 1]).tolist(),
+        **compute_metrics(y, probabilities),
         "inference_seconds": inference_seconds,
     }
 
@@ -259,8 +281,7 @@ def main():
     parser.add_argument("--batch-size", type=int, default=1024)
     parser.add_argument("--hidden-dim", type=int, default=128)
     parser.add_argument("--device", choices=["auto", "cuda", "mps", "cpu"], default="auto")
-    parser.add_argument("--figures-dir", type=Path,
-                        default=Path(__file__).resolve().parents[1] / "figures")
+    parser.add_argument("--figures-dir", type=Path, default=FIGURES_DIR)
     args = parser.parse_args()
     X_train, X_val, X_test, y_train, y_val, y_test, _ = run_pipeline()
     print(f"Training with {len(X_train):,} rows and {X_train.shape[1]} features.")

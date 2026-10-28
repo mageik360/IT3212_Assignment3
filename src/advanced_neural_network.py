@@ -26,26 +26,22 @@ across devices. The shallow baseline retains its original Adam optimizer.
 
 import argparse
 import json
-from copy import deepcopy
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from time import perf_counter
 
 import joblib
 import numpy as np
 import pandas as pd
 import torch
 from torch import nn
-from torch.utils.data import DataLoader
 
-from data_pipeline import RANDOM_STATE, run_pipeline
+from config import RANDOM_STATE, RESULTS_DIR
+from data_pipeline import run_pipeline
 from neural_network import (
     evaluate_model,
-    make_dataset,
-    predict,
+    fit,
     save_training_plots,
     select_device,
-    synchronize,
 )
 from neural_network import (
     train_model as train_baseline,
@@ -110,84 +106,25 @@ def train_model(
     verbose=True,
 ):
     """Return (best model, epoch history, summary), using validation only."""
-    if min(epochs, patience) < 1:
-        raise ValueError("epochs and patience must be positive.")
-    if not X_train.columns.equals(X_val.columns):
-        raise ValueError("Training and validation feature columns must match in order.")
-    train_data, val_data = make_dataset(X_train, y_train), make_dataset(X_val, y_val)
     torch.manual_seed(random_state)
-    device = select_device(device)
-    model = AdvancedNeuralNetwork(X_train.shape[1], config).to(device)
-    model.feature_columns = list(X_train.columns)
-    loader = DataLoader(
-        train_data,
-        batch_size=config.batch_size,
-        shuffle=True,
-        generator=torch.Generator().manual_seed(random_state),
-    )
+    model = AdvancedNeuralNetwork(X_train.shape[1], config).to(select_device(device))
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
     )
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="min", factor=0.5, patience=3, min_lr=1e-6
-    )
-    criterion = nn.BCEWithLogitsLoss()
-    best_loss, best_state, best_epoch, stale = float("inf"), None, 0, 0
-    history = []
-    synchronize(device)
-    started = perf_counter()
-    for epoch in range(1, epochs + 1):
-        model.train()
-        loss_sum = 0.0
-        epoch_lr = optimizer.param_groups[0]["lr"]
-        for features, labels in loader:
-            features, labels = features.to(device), labels.to(device)
-            # A singleton has no batch variance: use running statistics for BN
-            # only, retaining dropout and gradients and never discarding a row.
-            for module in model.modules():
-                if isinstance(module, nn.BatchNorm1d):
-                    module.train(len(labels) > 1)
-            optimizer.zero_grad()
-            loss = criterion(model(features), labels)
-            loss.backward()
-            optimizer.step()
-            loss_sum += loss.item() * len(labels)
-        val_loss, _ = predict(model, val_data)
-        train_loss = loss_sum / len(train_data)
-        if not np.isfinite([train_loss, val_loss]).all():
-            raise RuntimeError("Non-finite loss; check training settings.")
-        history.append(
-            {
-                "epoch": epoch,
-                "train_loss": train_loss,
-                "val_loss": val_loss,
-                "learning_rate": epoch_lr,
-            }
-        )
-        if verbose:
-            print(f"Epoch {epoch:03d}: train={train_loss:.4f}, val={val_loss:.4f}")
-        scheduler.step(val_loss)
-        if val_loss < best_loss:
-            best_loss, best_epoch, stale = val_loss, epoch, 0
-            best_state = deepcopy(model.state_dict())
-        else:
-            stale += 1
-            if stale >= patience:
-                break
-    model.load_state_dict(best_state)
-    model.eval()
-    synchronize(device)
-    return (
+    history, summary = fit(
         model,
-        pd.DataFrame(history),
-        {
-            "best_epoch": best_epoch,
-            "epochs_run": len(history),
-            "training_seconds": perf_counter() - started,
-            "parameter_count": sum(p.numel() for p in model.parameters()),
-            "device": str(device),
-        },
+        optimizer,
+        X_train,
+        y_train,
+        X_val,
+        y_val,
+        batch_size=config.batch_size,
+        epochs=epochs,
+        patience=patience,
+        random_state=random_state,
+        verbose=verbose,
     )
+    return model, history, summary
 
 
 def sample_configs(trials=30, seed=RANDOM_STATE):
@@ -311,7 +248,7 @@ def main(argv=None):
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(__file__).resolve().parents[1] / "result/advanced_neural_network",
+        default=RESULTS_DIR / "advanced_neural_network",
     )
     parser.add_argument("--hidden-dims", type=int, nargs="+", default=[256, 128, 64])
     parser.add_argument("--dropout", type=float, default=0.1)
