@@ -7,6 +7,6 @@ scikit-learn
 torch
 joblib
 python-dotenv
-
-# Dev
 pytest
+dotenv
+xgboost
