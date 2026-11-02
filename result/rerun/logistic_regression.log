@@ -1,0 +1,57 @@
+Loading and preprocessing data...
+Fitting 1 folds for each of 8 candidates, totalling 8 fits
+[CV 1/1] END clf__C=0.001, poly__degree=1; accuracy: (train=0.733, test=0.734) average_precision: (train=0.808, test=0.811) f1: (train=0.732, test=0.733) precision: (train=0.734, test=0.735) roc_auc: (train=0.812, test=0.814) total time=   3.4s
+[CV 1/1] END clf__C=0.01, poly__degree=1; accuracy: (train=0.733, test=0.735) average_precision: (train=0.809, test=0.812) f1: (train=0.733, test=0.734) precision: (train=0.734, test=0.736) roc_auc: (train=0.812, test=0.815) total time=   8.5s
+[CV 1/1] END clf__C=0.001, poly__degree=2; accuracy: (train=0.739, test=0.740) average_precision: (train=0.822, test=0.826) f1: (train=0.739, test=0.741) precision: (train=0.737, test=0.739) roc_auc: (train=0.822, test=0.824) total time= 1.2min
+[CV 1/1] END clf__C=0.1, poly__degree=1; accuracy: (train=0.733, test=0.735) average_precision: (train=0.809, test=0.812) f1: (train=0.733, test=0.734) precision: (train=0.733, test=0.735) roc_auc: (train=0.813, test=0.815) total time=  13.1s
+[CV 1/1] END clf__C=0.01, poly__degree=2; accuracy: (train=0.739, test=0.740) average_precision: (train=0.823, test=0.826) f1: (train=0.740, test=0.741) precision: (train=0.737, test=0.739) roc_auc: (train=0.822, test=0.824) total time= 1.8min
+[CV 1/1] END clf__C=1, poly__degree=1; accuracy: (train=0.733, test=0.735) average_precision: (train=0.809, test=0.812) f1: (train=0.733, test=0.734) precision: (train=0.733, test=0.735) roc_auc: (train=0.813, test=0.815) total time=  12.0s
+[CV 1/1] END clf__C=0.1, poly__degree=2; accuracy: (train=0.739, test=0.740) average_precision: (train=0.823, test=0.826) f1: (train=0.740, test=0.741) precision: (train=0.737, test=0.739) roc_auc: (train=0.822, test=0.824) total time= 2.7min
+[CV 1/1] END clf__C=1, poly__degree=2; accuracy: (train=0.739, test=0.740) average_precision: (train=0.823, test=0.826) f1: (train=0.740, test=0.741) precision: (train=0.737, test=0.738) roc_auc: (train=0.822, test=0.824) total time= 2.4min
+
+Tuning time: 308.4 s (8 candidates)
+Final training time (best model): 86.2 s
+Total time: 394.5 s
+
+All configurations (validation):
+    C  degree  train_average_precision  train_roc_auc  train_precision  train_accuracy  train_f1  val_average_precision  val_roc_auc  val_precision  val_accuracy   val_f1  fit_time_s
+0.010       2                 0.822871       0.822180         0.737033        0.738872  0.739732               0.826374     0.824227       0.738531      0.740185 0.740937  108.753023
+0.100       2                 0.822955       0.822237         0.737209        0.739013  0.739853               0.826323     0.824224       0.738634      0.740255 0.740990  158.965734
+1.000       2                 0.822952       0.822239         0.737153        0.738972  0.739820               0.826280     0.824210       0.738461      0.740124 0.740882  143.331809
+0.001       2                 0.822390       0.821892         0.737255        0.738783  0.739471               0.826186     0.824080       0.738788      0.740165 0.740766   68.609088
+1.000       1                 0.809085       0.812592         0.732822        0.733029  0.732992               0.812206     0.814707       0.734772      0.734556 0.734283   11.800007
+0.100       1                 0.809085       0.812598         0.732982        0.733054  0.732940               0.812180     0.814707       0.734981      0.734717 0.734417   12.806526
+0.010       1                 0.808824       0.812496         0.733745        0.733129  0.732620               0.811858     0.814600       0.735909      0.734758 0.733958    8.295792
+0.001       1                 0.807974       0.812049         0.733829        0.733037  0.732428               0.811154     0.814214       0.735328      0.733900 0.732938    3.212488
+
+Linear vs polynomial (best C per degree):
+ degree    C  train_average_precision  val_average_precision  val_precision  val_roc_auc  val_accuracy  overfit_gap  fit_time_s
+      1 1.00                 0.809085               0.812206       0.734772     0.814707      0.734556    -0.003121   11.800007
+      2 0.01                 0.822871               0.826374       0.738531     0.824227      0.740185    -0.003503  108.753023
+
+Best parameters: {'clf__C': 0.01, 'poly__degree': 2}
+
+Test metrics:
+  accuracy: 0.7404
+  precision: 0.7384
+  recall: 0.7442
+  f1: 0.7413
+  roc_auc: 0.8216
+  average_precision: 0.8228
+  confusion_matrix: [[36519, 13066], [12673, 36874]]
+
+Top 10 coefficients (log-odds per SD, odds ratio):
+                                    coef  odds_ratio
+age                               -1.058       0.347
+gamma_GTP                          0.598       1.818
+age sex_Male                       0.465       1.593
+HDL_chole                          0.427       1.532
+SGOT_ALT ast_alt_ratio             0.329       1.390
+SGOT_ALT^2                         0.300       1.350
+SGOT_AST SGOT_ALT                 -0.257       0.773
+SGOT_ALT SMK_stat_type_cd_current -0.235       0.790
+gamma_GTP^2                       -0.227       0.797
+SMK_stat_type_cd_not_anymore^2     0.219       1.244
+
+ROC curve saved to /home/magnus-eik/Cursor/IT3212/IT3212_Assignment3/figures/logistic_regression/roc_curve.png
+Precision-recall curve saved to /home/magnus-eik/Cursor/IT3212/IT3212_Assignment3/figures/logistic_regression/pr_curve.png

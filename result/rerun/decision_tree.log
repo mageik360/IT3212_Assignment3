@@ -1,0 +1,78 @@
+Loading and preprocessing data...
+Fitting 1 folds for each of 32 candidates, totalling 32 fits
+[CV 1/1] END criterion=gini, max_depth=6, min_samples_leaf=200; accuracy: (train=0.721, test=0.723) average_precision: (train=0.778, test=0.781) f1: (train=0.725, test=0.727) precision: (train=0.714, test=0.716) roc_auc: (train=0.795, test=0.798) total time=  14.0s
+[CV 1/1] END criterion=gini, max_depth=6, min_samples_leaf=800; accuracy: (train=0.720, test=0.722) average_precision: (train=0.778, test=0.781) f1: (train=0.724, test=0.726) precision: (train=0.714, test=0.716) roc_auc: (train=0.795, test=0.798) total time=  14.0s
+[CV 1/1] END criterion=gini, max_depth=6, min_samples_leaf=100; accuracy: (train=0.721, test=0.723) average_precision: (train=0.778, test=0.781) f1: (train=0.725, test=0.727) precision: (train=0.714, test=0.716) roc_auc: (train=0.795, test=0.798) total time=  14.1s
+[CV 1/1] END criterion=gini, max_depth=6, min_samples_leaf=400; accuracy: (train=0.721, test=0.723) average_precision: (train=0.778, test=0.781) f1: (train=0.725, test=0.727) precision: (train=0.714, test=0.716) roc_auc: (train=0.795, test=0.798) total time=  14.2s
+[CV 1/1] END criterion=gini, max_depth=12, min_samples_leaf=800; accuracy: (train=0.730, test=0.729) average_precision: (train=0.809, test=0.807) f1: (train=0.733, test=0.731) precision: (train=0.725, test=0.723) roc_auc: (train=0.812, test=0.810) total time=  20.9s
+[CV 1/1] END criterion=gini, max_depth=12, min_samples_leaf=400; accuracy: (train=0.734, test=0.729) average_precision: (train=0.813, test=0.808) f1: (train=0.736, test=0.732) precision: (train=0.729, test=0.725) roc_auc: (train=0.816, test=0.811) total time=  22.3s
+[CV 1/1] END criterion=gini, max_depth=18, min_samples_leaf=400; accuracy: (train=0.734, test=0.729) average_precision: (train=0.816, test=0.808) f1: (train=0.737, test=0.732) precision: (train=0.730, test=0.725) roc_auc: (train=0.817, test=0.811) total time=  23.2s
+[CV 1/1] END criterion=gini, max_depth=12, min_samples_leaf=100; accuracy: (train=0.739, test=0.728) average_precision: (train=0.820, test=0.807) f1: (train=0.740, test=0.728) precision: (train=0.737, test=0.726) roc_auc: (train=0.822, test=0.810) total time=  23.4s
+[CV 1/1] END criterion=gini, max_depth=12, min_samples_leaf=200; accuracy: (train=0.737, test=0.729) average_precision: (train=0.817, test=0.808) f1: (train=0.737, test=0.730) precision: (train=0.735, test=0.728) roc_auc: (train=0.819, test=0.811) total time=  23.0s
+[CV 1/1] END criterion=gini, max_depth=18, min_samples_leaf=200; accuracy: (train=0.740, test=0.729) average_precision: (train=0.824, test=0.807) f1: (train=0.741, test=0.729) precision: (train=0.738, test=0.727) roc_auc: (train=0.823, test=0.809) total time=  25.6s
+[CV 1/1] END criterion=gini, max_depth=18, min_samples_leaf=800; accuracy: (train=0.730, test=0.729) average_precision: (train=0.809, test=0.807) f1: (train=0.733, test=0.731) precision: (train=0.725, test=0.723) roc_auc: (train=0.812, test=0.810) total time=  26.0s
+[CV 1/1] END criterion=gini, max_depth=18, min_samples_leaf=100; accuracy: (train=0.747, test=0.724) average_precision: (train=0.835, test=0.801) f1: (train=0.746, test=0.723) precision: (train=0.749, test=0.726) roc_auc: (train=0.833, test=0.804) total time=  30.0s
+[CV 1/1] END criterion=gini, max_depth=24, min_samples_leaf=800; accuracy: (train=0.730, test=0.729) average_precision: (train=0.809, test=0.807) f1: (train=0.733, test=0.731) precision: (train=0.725, test=0.723) roc_auc: (train=0.812, test=0.810) total time=  20.3s
+[CV 1/1] END criterion=entropy, max_depth=6, min_samples_leaf=100; accuracy: (train=0.717, test=0.721) average_precision: (train=0.780, test=0.783) f1: (train=0.723, test=0.726) precision: (train=0.709, test=0.712) roc_auc: (train=0.795, test=0.797) total time=  13.9s
+[CV 1/1] END criterion=entropy, max_depth=6, min_samples_leaf=200; accuracy: (train=0.717, test=0.721) average_precision: (train=0.780, test=0.783) f1: (train=0.723, test=0.726) precision: (train=0.709, test=0.712) roc_auc: (train=0.795, test=0.797) total time=  13.3s
+[CV 1/1] END criterion=entropy, max_depth=6, min_samples_leaf=400; accuracy: (train=0.717, test=0.721) average_precision: (train=0.780, test=0.783) f1: (train=0.723, test=0.726) precision: (train=0.709, test=0.712) roc_auc: (train=0.795, test=0.797) total time=  13.5s
+[CV 1/1] END criterion=entropy, max_depth=6, min_samples_leaf=800; accuracy: (train=0.717, test=0.721) average_precision: (train=0.780, test=0.783) f1: (train=0.723, test=0.726) precision: (train=0.709, test=0.712) roc_auc: (train=0.795, test=0.797) total time=  13.3s
+[CV 1/1] END criterion=gini, max_depth=24, min_samples_leaf=400; accuracy: (train=0.734, test=0.729) average_precision: (train=0.816, test=0.808) f1: (train=0.737, test=0.732) precision: (train=0.730, test=0.725) roc_auc: (train=0.817, test=0.811) total time=  22.7s
+[CV 1/1] END criterion=gini, max_depth=24, min_samples_leaf=200; accuracy: (train=0.740, test=0.729) average_precision: (train=0.824, test=0.807) f1: (train=0.741, test=0.729) precision: (train=0.738, test=0.727) roc_auc: (train=0.823, test=0.809) total time=  23.7s
+[CV 1/1] END criterion=gini, max_depth=24, min_samples_leaf=100; accuracy: (train=0.747, test=0.724) average_precision: (train=0.835, test=0.801) f1: (train=0.747, test=0.723) precision: (train=0.748, test=0.725) roc_auc: (train=0.833, test=0.803) total time=  26.1s
+[CV 1/1] END criterion=entropy, max_depth=12, min_samples_leaf=100; accuracy: (train=0.738, test=0.730) average_precision: (train=0.821, test=0.806) f1: (train=0.738, test=0.730) precision: (train=0.737, test=0.729) roc_auc: (train=0.822, test=0.810) total time=  22.5s
+[CV 1/1] END criterion=entropy, max_depth=12, min_samples_leaf=400; accuracy: (train=0.733, test=0.729) average_precision: (train=0.814, test=0.808) f1: (train=0.736, test=0.731) precision: (train=0.729, test=0.725) roc_auc: (train=0.816, test=0.811) total time=  20.8s
+[CV 1/1] END criterion=entropy, max_depth=12, min_samples_leaf=800; accuracy: (train=0.730, test=0.730) average_precision: (train=0.809, test=0.806) f1: (train=0.732, test=0.732) precision: (train=0.726, test=0.725) roc_auc: (train=0.812, test=0.810) total time=  22.2s
+[CV 1/1] END criterion=entropy, max_depth=18, min_samples_leaf=800; accuracy: (train=0.730, test=0.730) average_precision: (train=0.809, test=0.806) f1: (train=0.733, test=0.732) precision: (train=0.726, test=0.725) roc_auc: (train=0.812, test=0.810) total time=  17.3s
+[CV 1/1] END criterion=entropy, max_depth=12, min_samples_leaf=200; accuracy: (train=0.736, test=0.729) average_precision: (train=0.818, test=0.808) f1: (train=0.737, test=0.729) precision: (train=0.735, test=0.727) roc_auc: (train=0.819, test=0.810) total time=  29.0s
+[CV 1/1] END criterion=entropy, max_depth=18, min_samples_leaf=400; accuracy: (train=0.735, test=0.729) average_precision: (train=0.816, test=0.808) f1: (train=0.736, test=0.730) precision: (train=0.731, test=0.726) roc_auc: (train=0.817, test=0.810) total time=  18.9s
+[CV 1/1] END criterion=entropy, max_depth=24, min_samples_leaf=400; accuracy: (train=0.735, test=0.729) average_precision: (train=0.816, test=0.808) f1: (train=0.736, test=0.730) precision: (train=0.731, test=0.726) roc_auc: (train=0.817, test=0.810) total time=  17.8s
+[CV 1/1] END criterion=entropy, max_depth=18, min_samples_leaf=200; accuracy: (train=0.740, test=0.728) average_precision: (train=0.824, test=0.806) f1: (train=0.741, test=0.729) precision: (train=0.738, test=0.725) roc_auc: (train=0.824, test=0.809) total time=  21.4s
+[CV 1/1] END criterion=entropy, max_depth=24, min_samples_leaf=800; accuracy: (train=0.730, test=0.730) average_precision: (train=0.809, test=0.806) f1: (train=0.733, test=0.732) precision: (train=0.726, test=0.725) roc_auc: (train=0.812, test=0.810) total time=  16.8s
+[CV 1/1] END criterion=entropy, max_depth=18, min_samples_leaf=100; accuracy: (train=0.747, test=0.725) average_precision: (train=0.835, test=0.800) f1: (train=0.747, test=0.724) precision: (train=0.749, test=0.726) roc_auc: (train=0.833, test=0.804) total time=  22.5s
+[CV 1/1] END criterion=entropy, max_depth=24, min_samples_leaf=200; accuracy: (train=0.740, test=0.728) average_precision: (train=0.824, test=0.806) f1: (train=0.741, test=0.729) precision: (train=0.738, test=0.725) roc_auc: (train=0.824, test=0.809) total time=  20.8s
+[CV 1/1] END criterion=entropy, max_depth=24, min_samples_leaf=100; accuracy: (train=0.748, test=0.724) average_precision: (train=0.836, test=0.800) f1: (train=0.747, test=0.723) precision: (train=0.749, test=0.725) roc_auc: (train=0.833, test=0.803) total time=  21.7s
+
+Tuning time: 65.6 s (32 candidates)
+Final training time (best tree): 12.3 s
+Total time: 77.9 s
+
+Top 10 configurations (validation):
+criterion  max_depth  min_samples_leaf  train_average_precision  train_roc_auc  train_precision  train_accuracy  train_f1  val_average_precision  val_roc_auc  val_precision  val_accuracy   val_f1  fit_time_s
+     gini         24               400                 0.815611       0.816888         0.729513        0.734325  0.736928               0.808044     0.810684       0.724983      0.729250 0.731638   22.483372
+     gini         12               200                 0.817004       0.818989         0.735401        0.736653  0.737199               0.808024     0.810512       0.727574      0.729018 0.729719   22.745803
+     gini         18               400                 0.815595       0.816887         0.729513        0.734325  0.736928               0.808015     0.810684       0.724983      0.729250 0.731638   22.810944
+  entropy         24               400                 0.815910       0.817008         0.731303        0.734609  0.736338               0.807985     0.810449       0.726134      0.728957 0.730483   17.640137
+  entropy         18               400                 0.815910       0.817008         0.731303        0.734609  0.736338               0.807985     0.810449       0.726134      0.728957 0.730483   18.645876
+     gini         12               400                 0.813359       0.815744         0.728607        0.733588  0.736304               0.807963     0.810918       0.724765      0.729472 0.732120   21.937955
+  entropy         12               400                 0.814146       0.815822         0.728527        0.733437  0.736116               0.807608     0.810653       0.724607      0.728867 0.731258   20.532794
+  entropy         12               200                 0.818165       0.819190         0.734935        0.736169  0.736708               0.807545     0.810391       0.727269      0.728624 0.729274   28.708855
+     gini         18               800                 0.809241       0.812005         0.725028        0.730018  0.732820               0.807132     0.810162       0.723300      0.728513 0.731490   25.699921
+     gini         24               800                 0.809241       0.812005         0.725028        0.730018  0.732820               0.807132     0.810162       0.723300      0.728513 0.731490   20.070203
+
+Best parameters: {'criterion': 'gini', 'max_depth': 24, 'min_samples_leaf': 400}
+Best tree: 1684 leaves, depth 20
+
+Test metrics:
+  accuracy: 0.7267
+  precision: 0.7217
+  recall: 0.7376
+  f1: 0.7296
+  roc_auc: 0.8069
+  average_precision: 0.8041
+  confusion_matrix: [[35495, 14090], [13003, 36544]]
+
+Top 10 feature importances:
+sex_Male                        0.449078
+age                             0.250619
+gamma_GTP                       0.128757
+HDL_chole                       0.052498
+ast_alt_ratio                   0.041133
+SMK_stat_type_cd_current        0.024168
+SMK_stat_type_cd_not_anymore    0.019386
+triglyceride                    0.004597
+LDL_chole                       0.004520
+SGOT_ALT                        0.004092
+
+ROC curve saved to /home/magnus-eik/Cursor/IT3212/IT3212_Assignment3/figures/decision_tree/roc_curve.png
+Precision-recall curve saved to /home/magnus-eik/Cursor/IT3212/IT3212_Assignment3/figures/decision_tree/pr_curve.png

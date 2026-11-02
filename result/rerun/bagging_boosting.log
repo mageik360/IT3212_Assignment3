@@ -1,0 +1,84 @@
+Loading and preprocessing data...
+
+=== Decision tree ===
+Fit time: 9.1 s, members used: 1 of 1, validation ROC AUC: 0.8107, validation average precision: 0.8080
+Test metrics:
+  accuracy: 0.7275
+  precision: 0.7212
+  recall: 0.7416
+  f1: 0.7313
+  roc_auc: 0.8075
+  average_precision: 0.8048
+  confusion_matrix: [[35378, 14207], [12802, 36745]]
+
+=== Boosted decision tree ===
+  Boosting round 1/200 (0 s)  Boosting round 2/200 (4 s)  Boosting round 3/200 (9 s)  Boosting round 4/200 (13 s)  Boosting round 5/200 (18 s)  Boosting round 6/200 (23 s)  Boosting round 7/200 (27 s)  Boosting round 8/200 (31 s)  Boosting round 9/200 (36 s)  Boosting round 10/200 (40 s)  Boosting round 11/200 (45 s)  Boosting round 12/200 (49 s)  Boosting round 13/200 (54 s)  Boosting round 14/200 (59 s)  Boosting round 15/200 (63 s)  Boosting round 16/200 (68 s)  Boosting round 17/200 (72 s)  Boosting round 18/200 (77 s)  Boosting round 19/200 (82 s)  Boosting round 20/200 (86 s)  Boosting round 21/200 (91 s)  Boosting round 22/200 (95 s)  Boosting round 23/200 (100 s)  Boosting round 24/200 (104 s)  Boosting round 25/200 (109 s)  Boosting round 26/200 (113 s)  Boosting round 27/200 (118 s)  Boosting round 28/200 (122 s)  Boosting round 29/200 (127 s)  Boosting round 30/200 (131 s)  Boosting round 31/200 (136 s)  Boosting round 32/200 (140 s)  Boosting round 33/200 (145 s)  Boosting round 34/200 (150 s)  Boosting round 35/200 (154 s)  Boosting round 36/200 (159 s)  Boosting round 37/200 (163 s)  Boosting round 38/200 (168 s)  Boosting round 39/200 (172 s)  Boosting round 40/200 (177 s)  Boosting round 41/200 (181 s)  Boosting round 42/200 (186 s)  Boosting round 43/200 (190 s)  Boosting round 44/200 (195 s)  Boosting round 45/200 (199 s)  Boosting round 46/200 (203 s)  Boosting round 47/200 (208 s)  Boosting round 48/200 (212 s)  Boosting round 49/200 (216 s)  Boosting round 50/200 (220 s)  Boosting round 51/200 (224 s)  Boosting round 52/200 (228 s)  Boosting round 53/200 (233 s)  Boosting round 54/200 (237 s)  Boosting round 55/200 (241 s)  Boosting round 56/200 (245 s)  Boosting round 57/200 (249 s)  Boosting round 58/200 (253 s)  Boosting round 59/200 (258 s)  Boosting round 60/200 (262 s)  Boosting round 61/200 (266 s)  Boosting round 62/200 (270 s)  Boosting round 63/200 (275 s)  Boosting round 64/200 (279 s)  Boosting round 65/200 (283 s)  Boosting round 66/200 (287 s)  Boosting round 67/200 (292 s)  Boosting round 68/200 (296 s)  Boosting round 69/200 (300 s)  Boosting round 70/200 (304 s)  Boosting round 71/200 (309 s)  Boosting round 72/200 (313 s)  Boosting round 73/200 (317 s)  Boosting round 74/200 (321 s)  Boosting round 75/200 (325 s)  Boosting round 76/200 (329 s)  Boosting round 77/200 (334 s)  Boosting round 78/200 (338 s)  Boosting round 79/200 (342 s)  Boosting round 80/200 (346 s)  Boosting round 81/200 (350 s)  Boosting round 82/200 (355 s)  Boosting round 83/200 (359 s)  Boosting round 84/200 (363 s)  Boosting round 85/200 (367 s)  Boosting round 86/200 (371 s)  Boosting round 87/200 (376 s)  Boosting round 88/200 (380 s)  Boosting round 89/200 (384 s)  Boosting round 90/200 (389 s)  Boosting round 91/200 (394 s)  Boosting round 92/200 (400 s)  Boosting round 93/200 (406 s)  Boosting round 94/200 (412 s)  Boosting round 95/200 (416 s)  Boosting round 96/200 (420 s)  Boosting round 97/200 (424 s)  Boosting round 98/200 (429 s)  Boosting round 99/200 (433 s)  Boosting round 100/200 (437 s)  Boosting round 101/200 (441 s)  Boosting round 102/200 (446 s)  Boosting round 103/200 (450 s)  Boosting round 104/200 (454 s)  Boosting round 105/200 (459 s)  Boosting round 106/200 (463 s)  Boosting round 107/200 (467 s)  Boosting round 108/200 (471 s)  Boosting round 109/200 (475 s)  Boosting round 110/200 (480 s)  Boosting round 111/200 (484 s)  Boosting round 112/200 (488 s)  Boosting round 113/200 (492 s)  Boosting round 114/200 (496 s)  Boosting round 115/200 (501 s)  Boosting round 116/200 (505 s)  Boosting round 117/200 (509 s)  Boosting round 118/200 (513 s)  Boosting round 119/200 (517 s)  Boosting round 120/200 (522 s)  Boosting round 121/200 (526 s)  Boosting round 122/200 (530 s)  Boosting round 123/200 (534 s)  Boosting round 124/200 (538 s)  Boosting round 125/200 (542 s)  Boosting round 126/200 (547 s)  Boosting round 127/200 (551 s)  Boosting round 128/200 (555 s)  Boosting round 129/200 (559 s)  Boosting round 130/200 (563 s)  Boosting round 131/200 (568 s)  Boosting round 132/200 (572 s)  Boosting round 133/200 (577 s)  Boosting round 134/200 (581 s)  Boosting round 135/200 (585 s)  Boosting round 136/200 (590 s)  Boosting round 137/200 (594 s)  Boosting round 138/200 (598 s)  Boosting round 139/200 (602 s)  Boosting round 140/200 (606 s)  Boosting round 141/200 (611 s)  Boosting round 142/200 (615 s)  Boosting round 143/200 (619 s)  Boosting round 144/200 (623 s)  Boosting round 145/200 (627 s)  Boosting round 146/200 (632 s)  Boosting round 147/200 (636 s)  Boosting round 148/200 (640 s)  Boosting round 149/200 (644 s)  Boosting round 150/200 (648 s)  Boosting round 151/200 (653 s)  Boosting round 152/200 (657 s)  Boosting round 153/200 (661 s)  Boosting round 154/200 (665 s)  Boosting round 155/200 (669 s)  Boosting round 156/200 (674 s)  Boosting round 157/200 (678 s)  Boosting round 158/200 (682 s)  Boosting round 159/200 (686 s)  Boosting round 160/200 (691 s)  Boosting round 161/200 (696 s)  Boosting round 162/200 (700 s)  Boosting round 163/200 (704 s)  Boosting round 164/200 (708 s)  Boosting round 165/200 (712 s)  Boosting round 166/200 (717 s)  Boosting round 167/200 (721 s)  Boosting round 168/200 (725 s)  Boosting round 169/200 (729 s)  Boosting round 170/200 (733 s)  Boosting round 171/200 (738 s)  Boosting round 172/200 (742 s)  Boosting round 173/200 (746 s)  Boosting round 174/200 (750 s)  Boosting round 175/200 (755 s)  Boosting round 176/200 (759 s)  Boosting round 177/200 (763 s)  Boosting round 178/200 (767 s)  Boosting round 179/200 (771 s)  Boosting round 180/200 (775 s)  Boosting round 181/200 (780 s)  Boosting round 182/200 (784 s)  Boosting round 183/200 (788 s)  Boosting round 184/200 (792 s)  Boosting round 185/200 (796 s)  Boosting round 186/200 (800 s)  Boosting round 187/200 (805 s)  Boosting round 188/200 (809 s)  Boosting round 189/200 (813 s)  Boosting round 190/200 (817 s)  Boosting round 191/200 (821 s)  Boosting round 192/200 (826 s)  Boosting round 193/200 (830 s)  Boosting round 194/200 (835 s)  Boosting round 195/200 (839 s)  Boosting round 196/200 (843 s)  Boosting round 197/200 (848 s)  Boosting round 198/200 (852 s)  Boosting round 199/200 (856 s)  Boosting round 200/200 (860 s)
+Fit time: 864.4 s, members used: 198 of 200, validation ROC AUC: 0.8189, validation average precision: 0.8208
+Test metrics:
+  accuracy: 0.7349
+  precision: 0.7316
+  recall: 0.7417
+  f1: 0.7366
+  roc_auc: 0.8157
+  average_precision: 0.8167
+  confusion_matrix: [[36105, 13480], [12797, 36750]]
+
+=== Bagged decision tree ===
+Fit time: 183.4 s, members used: 100 of 100, validation ROC AUC: 0.8199, validation average precision: 0.8220
+Test metrics:
+  accuracy: 0.7355
+  precision: 0.7336
+  recall: 0.7392
+  f1: 0.7364
+  roc_auc: 0.8166
+  average_precision: 0.8178
+  confusion_matrix: [[36283, 13302], [12921, 36626]]
+
+=== Logistic regression ===
+Fit time: 79.0 s, members used: 1 of 1, validation ROC AUC: 0.8242, validation average precision: 0.8264
+Test metrics:
+  accuracy: 0.7401
+  precision: 0.738
+  recall: 0.7443
+  f1: 0.7412
+  roc_auc: 0.8216
+  average_precision: 0.8228
+  confusion_matrix: [[36493, 13092], [12668, 36879]]
+
+=== Boosted logistic regression ===
+  Boosting round 1/10 (0 s)  Boosting round 2/10 (70 s)  Boosting round 3/10 (152 s)  Boosting round 4/10 (240 s)  Boosting round 5/10 (331 s)  Boosting round 6/10 (427 s)  Boosting round 7/10 (520 s)  Boosting round 8/10 (609 s)  Boosting round 9/10 (703 s)  Boosting round 10/10 (795 s)
+Fit time: 891.2 s, members used: 10 of 10, validation ROC AUC: 0.7646, validation average precision: 0.7128
+Test metrics:
+  accuracy: 0.738
+  precision: 0.7388
+  recall: 0.7361
+  f1: 0.7374
+  roc_auc: 0.7643
+  average_precision: 0.7126
+  confusion_matrix: [[36688, 12897], [13074, 36473]]
+
+=== Bagged logistic regression ===
+Fit time: 610.1 s, members used: 10 of 10, validation ROC AUC: 0.8242, validation average precision: 0.8264
+Test metrics:
+  accuracy: 0.74
+  precision: 0.7376
+  recall: 0.7446
+  f1: 0.7411
+  roc_auc: 0.8216
+  average_precision: 0.8228
+  confusion_matrix: [[36459, 13126], [12652, 36895]]
+
+Summary (all saved runs):
+          model  n_used  val_average_precision  val_roc_auc  test_roc_auc  test_accuracy  test_precision  test_recall  fit_time_s
+           tree       1                 0.8080       0.8107        0.8075         0.7275          0.7212       0.7416      9.0754
+  tree_boosting     198                 0.8208       0.8189        0.8157         0.7349          0.7316       0.7417    864.3962
+   tree_bagging     100                 0.8220       0.8199        0.8166         0.7355          0.7336       0.7392    183.3573
+         logreg       1                 0.8264       0.8242        0.8216         0.7401          0.7380       0.7443     79.0225
+logreg_boosting      10                 0.7128       0.7646        0.7643         0.7380          0.7388       0.7361    891.2475
+ logreg_bagging      10                 0.8264       0.8242        0.8216         0.7400          0.7376       0.7446    610.1049
+
+Validation curves saved to /home/magnus-eik/Cursor/IT3212/IT3212_Assignment3/figures/bagging_boosting/validation_curves.png
+ROC curve saved to /home/magnus-eik/Cursor/IT3212/IT3212_Assignment3/figures/bagging_boosting/roc_curve_tree.png
+Precision-recall curve saved to /home/magnus-eik/Cursor/IT3212/IT3212_Assignment3/figures/bagging_boosting/pr_curve_tree.png
+ROC curve saved to /home/magnus-eik/Cursor/IT3212/IT3212_Assignment3/figures/bagging_boosting/roc_curve_logreg.png
+Precision-recall curve saved to /home/magnus-eik/Cursor/IT3212/IT3212_Assignment3/figures/bagging_boosting/pr_curve_logreg.png

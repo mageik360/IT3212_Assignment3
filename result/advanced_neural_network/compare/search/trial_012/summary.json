@@ -1,9 +1,9 @@
 {
-  "best_epoch": 26,
-  "epochs_run": 36,
-  "training_seconds": 182.66182800000024,
+  "best_epoch": 9,
+  "epochs_run": 19,
+  "training_seconds": 106.3068092880003,
   "parameter_count": 114689,
-  "device": "mps",
+  "device": "cuda:0",
   "seed": 42,
   "config": {
     "hidden_dims": [

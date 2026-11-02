@@ -1,2 +1,2 @@
-n_members,val_roc_auc
-1,0.8242309615744661
+n_members,val_roc_auc,val_average_precision
+1,0.8242362713528557,0.8263783741948288

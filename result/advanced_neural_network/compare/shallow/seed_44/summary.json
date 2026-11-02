@@ -1,15 +1,15 @@
 {
-  "best_epoch": 21,
-  "epochs_run": 31,
-  "training_seconds": 137.57509650000065,
-  "parameter_count": 3969,
-  "device": "mps",
+  "best_epoch": 44,
+  "epochs_run": 50,
+  "training_seconds": 284.16053863699926,
+  "parameter_count": 7937,
+  "device": "cuda:0",
   "seed": 44,
   "config": {
-    "hidden_dim": 128,
-    "batch_size": 1024,
+    "hidden_dim": 256,
     "learning_rate": 0.001,
     "weight_decay": 0.0001,
+    "batch_size": 1024,
     "optimizer": "Adam"
   }
 }

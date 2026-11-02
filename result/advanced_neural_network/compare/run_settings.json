@@ -5,7 +5,8 @@
   "patience": 10,
   "seed": 42,
   "device": "auto",
-  "output_dir": "/Users/magnus/Cursor/IT3212/Assignment3/IT3212_Assignment3/result/advanced_neural_network/compare",
+  "output_dir": "/home/magnus-eik/Cursor/IT3212/IT3212_Assignment3/result/advanced_neural_network/compare",
+  "shallow_config": "/home/magnus-eik/Cursor/IT3212/IT3212_Assignment3/result/neural_network/selected_config.json",
   "hidden_dims": [
     256,
     128,
