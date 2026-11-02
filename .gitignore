@@ -25,3 +25,5 @@ __pycache__/
 .venv
 
 figures/
+# Console output from runs
+logs/
