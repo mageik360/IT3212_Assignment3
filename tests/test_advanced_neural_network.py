@@ -119,6 +119,7 @@ def test_cli_smoke_and_artifacts(data, monkeypatch, tmp_path, mode):
     directory = tmp_path / mode
     assert (directory / "preprocessing.joblib").exists()
     assert (directory / "metrics_summary.csv").exists()
+    assert (directory / "roc_curve.png").exists() and (directory / "pr_curve.png").exists()
     metrics = pd.read_csv(directory / "metrics.csv")
     assert len(metrics) == (18 if mode == "compare" else 2)
     if mode != "train":

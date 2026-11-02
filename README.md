@@ -11,6 +11,7 @@ pytest
 ```
 
 Run scripts from the project root, e.g. `python src/decision_tree.py`.
+`bash scripts/rerun_all.sh` reruns every model in sequence on one machine (several hours; console output saved to `result/rerun/`).
 
 ## Layout (`src/`)
 

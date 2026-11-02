@@ -59,7 +59,7 @@ FIGURE_DIR = FIGURES_DIR / "bagging_boosting"
 RESULT_DIR = RESULTS_DIR / "bagging_boosting"
 
 # Best configurations from task 5 (validation search, see the report)
-TUNED_TREE = {"criterion": "entropy", "max_depth": 12, "min_samples_leaf": 100}
+TUNED_TREE = {"criterion": "gini", "max_depth": 24, "min_samples_leaf": 400}
 TUNED_LOGREG = {"poly__degree": 2, "clf__C": 0.01}
 
 # Depth 3 trees are weak learners that can still model a few interactions

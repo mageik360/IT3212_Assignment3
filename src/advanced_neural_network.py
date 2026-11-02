@@ -38,9 +38,12 @@ from torch import nn
 
 from config import RANDOM_STATE, RESULTS_DIR
 from data_pipeline import run_pipeline
+from evaluation import plot_pr_curve, plot_roc_curve
 from neural_network import (
     evaluate_model,
     fit,
+    make_dataset,
+    predict,
     save_training_plots,
     select_device,
 )
@@ -318,6 +321,7 @@ def main(argv=None):
     if args.shallow_config.exists():
         shallow_config.update(json.loads(args.shallow_config.read_text()))
     results = []
+    test_probas = {}
     # Configuration selection is complete before any test-set evaluation.
     for name, variant in variants:
         for seed in seeds:
@@ -345,6 +349,11 @@ def main(argv=None):
                 results.append(
                     dict(model=name, seed=seed, split=split, **summary, **values)
                 )
+            if seed == seeds[0]:
+                _, test_probas[name] = predict(model, make_dataset(X_test, y_test))
+    # Test-set curves of each model at the first seed
+    plot_roc_curve(y_test, test_probas, directory / "roc_curve.png")
+    plot_pr_curve(y_test, test_probas, directory / "pr_curve.png")
     frame = pd.DataFrame(results)
     frame.to_csv(directory / "metrics.csv", index=False)
     columns = [
