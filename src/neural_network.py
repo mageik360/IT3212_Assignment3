@@ -47,7 +47,7 @@ def synchronize(device: torch.device):
 class NeuralNetwork(nn.Module):
     """One ReLU hidden layer and one binary-classification output logit.
 
-    128 hidden units increase capacity while retaining a single hidden layer.
+    256 hidden units increase capacity while retaining a single hidden layer.
     Returning logits lets BCEWithLogitsLoss compute binary cross-entropy stably;
     sigmoid is applied only when probabilities are needed for evaluation.
     """
@@ -223,7 +223,7 @@ def train_model(
     X_val: pd.DataFrame,
     y_val: pd.Series,
     *,
-    hidden_dim: int = 128,
+    hidden_dim: int = 256,
     epochs: int = 50,
     batch_size: int = 1024,
     learning_rate: float = 1e-3,
@@ -261,7 +261,7 @@ def train_model(
 
 def refit_model(
     X_train, y_train, X_val, y_val, *, selection_history,
-    hidden_dim=128, batch_size=1024, weight_decay=1e-4,
+    hidden_dim=256, batch_size=1024, weight_decay=1e-4,
     device="auto", random_state=RANDOM_STATE, verbose=True,
 ):
     """Refit a freshly initialized baseline on combined processed train/val data.
@@ -350,7 +350,7 @@ def main(argv=None):
                         help="Refit on train + validation for the selected epoch count.")
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=1024)
-    parser.add_argument("--hidden-dim", type=int, default=128)
+    parser.add_argument("--hidden-dim", type=int, default=256)
     parser.add_argument("--device", choices=["auto", "cuda", "mps", "cpu"], default="auto")
     parser.add_argument("--figures-dir", type=Path, default=FIGURES_DIR)
     args = parser.parse_args(argv)
