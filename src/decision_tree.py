@@ -1,10 +1,12 @@
+import time
+
 import pandas as pd
 from sklearn.tree import DecisionTreeClassifier
 
 from config import FIGURES_DIR, RANDOM_STATE
 from data_pipeline import run_pipeline
 from evaluation import compute_metrics, plot_roc_curve
-from tuning import results_table, tune_on_validation
+from tuning import SCORING, results_table, tune_on_validation
 
 FIGURE_DIR = FIGURES_DIR / "decision_tree"
 
@@ -20,10 +22,20 @@ def main():
     print("Loading and preprocessing data...", flush=True)
     X_train, X_val, X_test, y_train, y_val, y_test, _ = run_pipeline()
 
+    start = time.perf_counter()
     search = tune_on_validation(
         DecisionTreeClassifier(random_state=RANDOM_STATE), PARAM_GRID,
         X_train, y_train, X_val, y_val,
+        # Select the best tree by validation precision
+        scoring=[*SCORING, "precision"], refit="precision",
     )
+    total_time = time.perf_counter() - start
+    # refit_time_ is the final training of the best tree on train + validation
+    print(f"\nTuning time: {total_time - search.refit_time_:.1f} s "
+          f"({len(search.cv_results_['params'])} candidates)")
+    print(f"Final training time (best tree): {search.refit_time_:.1f} s")
+    print(f"Total time: {total_time:.1f} s")
+
     print("\nTop 10 configurations (validation):")
     print(results_table(search).head(10).to_string(index=False))
     print("\nBest parameters:", search.best_params_)
