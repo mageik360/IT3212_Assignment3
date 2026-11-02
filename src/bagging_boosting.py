@@ -23,7 +23,7 @@ member sees all features, which separates plain bagging from a random forest.
 
 All models are fitted on the training split only, because the validation split
 is needed to choose the number of boosting rounds: the round with the highest
-validation ROC AUC is used, which acts as early stopping. Bagging cannot overfit
+validation average precision is used, which acts as early stopping. Bagging cannot overfit
 by adding members, so all members are used, and its validation curve only shows
 where the gain levels off. Test scores therefore differ slightly from task 5,
 where the final models were refitted on train + validation.
@@ -44,13 +44,13 @@ import pandas as pd
 from sklearn.base import BaseEstimator
 from sklearn.ensemble import AdaBoostClassifier, BaggingClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import average_precision_score, roc_auc_score
 from sklearn.pipeline import Pipeline
 from sklearn.tree import DecisionTreeClassifier
 
 from config import FIGURES_DIR, RANDOM_STATE, RESULTS_DIR
 from data_pipeline import run_pipeline
-from evaluation import compute_metrics, plot_roc_curve
+from evaluation import compute_metrics, plot_pr_curve, plot_roc_curve
 from logistic_regression import N_JOBS as LOGREG_N_JOBS
 from logistic_regression import build_model as build_logreg
 from plotting import save_figure
@@ -125,7 +125,7 @@ class Model:
 @dataclass
 class Result:
     model: Model
-    curve: pd.DataFrame  # validation ROC AUC per ensemble size
+    curve: pd.DataFrame  # validation ROC AUC and average precision per ensemble size
     n_used: int
     test_proba: np.ndarray
     row: dict
@@ -209,14 +209,16 @@ def proba_at(model, X, n_members: int) -> np.ndarray:
 
 
 def validation_curve(model, X_val, y_val) -> pd.DataFrame:
-    aucs = [roc_auc_score(y_val, proba) for proba in staged_proba(model, X_val)]
-    return pd.DataFrame({"n_members": range(1, len(aucs) + 1), "val_roc_auc": aucs})
+    scores = [(roc_auc_score(y_val, proba), average_precision_score(y_val, proba))
+              for proba in staged_proba(model, X_val)]
+    curve = pd.DataFrame(scores, columns=["val_roc_auc", "val_average_precision"])
+    return curve.assign(n_members=range(1, len(curve) + 1))[["n_members", *curve.columns]]
 
 
 def select_size(method: str, curve: pd.DataFrame) -> int:
-    """Boosting: the round with the best validation ROC AUC. Otherwise: all members."""
+    """Boosting: the round with the best validation average precision. Otherwise: all members."""
     if method == "boosting":
-        return int(curve.loc[curve.val_roc_auc.idxmax(), "n_members"])
+        return int(curve.loc[curve.val_average_precision.idxmax(), "n_members"])
     return int(curve.n_members.max())
 
 
@@ -230,8 +232,9 @@ def run(model: Model, X_train, y_train, X_val, y_val, X_test, y_test) -> Result:
     curve = validation_curve(estimator, X_val, y_val)
     n_used = select_size(model.method, curve)
     val_auc = curve.val_roc_auc.iloc[n_used - 1]
+    val_ap = curve.val_average_precision.iloc[n_used - 1]
     print(f"Fit time: {fit_time:.1f} s, members used: {n_used} of {len(curve)}, "
-          f"validation ROC AUC: {val_auc:.4f}")
+          f"validation ROC AUC: {val_auc:.4f}, validation average precision: {val_ap:.4f}")
 
     # Held-out test score, reported once at the selected ensemble size
     start = perf_counter()
@@ -245,6 +248,7 @@ def run(model: Model, X_train, y_train, X_val, y_val, X_test, y_test) -> Result:
     (tn, fp), (fn, tp) = metrics.pop("confusion_matrix")
     row = {"model": model.name, "base": model.base, "method": model.method,
            "n_members": len(curve), "n_used": n_used, "val_roc_auc": val_auc,
+           "val_average_precision": val_ap,
            **{f"test_{name}": value for name, value in metrics.items()},
            "tn": tn, "fp": fp, "fn": fn, "tp": tp,
            "fit_time_s": fit_time, "predict_time_s": predict_time}
@@ -252,17 +256,17 @@ def run(model: Model, X_train, y_train, X_val, y_val, X_test, y_test) -> Result:
 
 
 def plot_validation_curves(results: list[Result], path):
-    """One panel per base model: ensemble size against validation ROC AUC."""
+    """One panel per base model: ensemble size against validation average precision."""
     bases = list(dict.fromkeys(r.model.base for r in results))
     fig, axes = plt.subplots(1, len(bases), figsize=(6 * len(bases), 4.5), squeeze=False)
     for ax, base in zip(axes[0], bases):
         for r in (r for r in results if r.model.base == base):
             if r.model.method == "single":
-                ax.axhline(r.curve.val_roc_auc.iloc[0], linestyle="--", color="gray", label=r.model.label)
+                ax.axhline(r.curve.val_average_precision.iloc[0], linestyle="--", color="gray", label=r.model.label)
                 continue
-            (line,) = ax.plot(r.curve.n_members, r.curve.val_roc_auc, label=r.model.label)
-            ax.plot(r.n_used, r.curve.val_roc_auc.iloc[r.n_used - 1], "o", color=line.get_color())
-        ax.set(title=BASE_LABELS[base], xlabel="Ensemble members", ylabel="Validation ROC AUC")
+            (line,) = ax.plot(r.curve.n_members, r.curve.val_average_precision, label=r.model.label)
+            ax.plot(r.n_used, r.curve.val_average_precision.iloc[r.n_used - 1], "o", color=line.get_color())
+        ax.set(title=BASE_LABELS[base], xlabel="Ensemble members", ylabel="Validation average precision")
         ax.legend(loc="lower right")
     return save_figure(fig, path)
 
@@ -298,8 +302,8 @@ def main(argv=None):
                for model in build_models() if model.name in args.models]
 
     table = save_results(results)
-    columns = ["model", "n_used", "val_roc_auc", "test_roc_auc", "test_accuracy",
-               "test_precision", "test_recall", "fit_time_s"]
+    columns = ["model", "n_used", "val_average_precision", "val_roc_auc", "test_roc_auc",
+               "test_accuracy", "test_precision", "test_recall", "fit_time_s"]
     print("\nSummary (all saved runs):")
     print(table[columns].round(4).to_string(index=False))
 
@@ -309,6 +313,8 @@ def main(argv=None):
         probas = {r.model.label: r.test_proba for r in results if r.model.base == base}
         path = plot_roc_curve(y_test, probas, FIGURE_DIR / f"roc_curve_{base}.png")
         print(f"ROC curve saved to {path}")
+        path = plot_pr_curve(y_test, probas, FIGURE_DIR / f"pr_curve_{base}.png")
+        print(f"Precision-recall curve saved to {path}")
 
 
 if __name__ == "__main__":

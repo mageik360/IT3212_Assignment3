@@ -8,8 +8,8 @@ from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 from config import FIGURES_DIR, RANDOM_STATE
 from data_pipeline import run_pipeline
-from evaluation import compute_metrics, plot_roc_curve
-from tuning import SCORING, results_table, tune_on_validation
+from evaluation import compute_metrics, plot_pr_curve, plot_roc_curve
+from tuning import results_table, tune_on_validation
 
 FIGURE_DIR = FIGURES_DIR / "logistic_regression"
 
@@ -49,8 +49,6 @@ def main():
     start = time.perf_counter()
     search = tune_on_validation(
         build_model(), PARAM_GRID, X_train, y_train, X_val, y_val, n_jobs=N_JOBS,
-        # Select the best model by validation average precision
-        scoring=[*SCORING, "precision", "average_precision"], refit="average_precision",
     )
     total_time = time.perf_counter() - start
     # refit_time_ is the final training of the best model on train + validation
@@ -85,6 +83,8 @@ def main():
 
     path = plot_roc_curve(y_test, {"Logistic regression": proba}, FIGURE_DIR / "roc_curve.png")
     print(f"\nROC curve saved to {path}")
+    path = plot_pr_curve(y_test, {"Logistic regression": proba}, FIGURE_DIR / "pr_curve.png")
+    print(f"Precision-recall curve saved to {path}")
 
 
 if __name__ == "__main__":

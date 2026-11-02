@@ -50,7 +50,8 @@ def test_mean_weighted_logreg_ignores_weight_scale(splits):
 
 
 def test_select_size_early_stops_only_boosting():
-    curve = pd.DataFrame({"n_members": [1, 2, 3, 4], "val_roc_auc": [0.7, 0.8, 0.75, 0.74]})
+    curve = pd.DataFrame({"n_members": [1, 2, 3, 4], "val_roc_auc": [0.9, 0.7, 0.75, 0.74],
+                          "val_average_precision": [0.7, 0.8, 0.75, 0.74]})
     assert select_size("boosting", curve) == 2
     assert select_size("bagging", curve) == 4
     assert select_size("single", curve.head(1)) == 1
@@ -71,7 +72,8 @@ def test_bagging_boosting_main_dry_run(splits, monkeypatch, tmp_path, capsys):
     table = pd.read_csv(tmp_path / "results" / "metrics.csv")
     assert list(table.model) == [m.name for m in bagging_boosting.build_models()]
     assert (table.n_used <= table.n_members).all()
-    for name in ["validation_curves.png", "roc_curve_tree.png", "roc_curve_logreg.png"]:
+    for name in ["validation_curves.png", "roc_curve_tree.png", "roc_curve_logreg.png",
+                 "pr_curve_tree.png", "pr_curve_logreg.png"]:
         assert (tmp_path / "figures" / name).read_bytes().startswith(b"\x89PNG")
 
     # Rerunning a subset replaces only those rows

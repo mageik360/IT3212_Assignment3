@@ -1,14 +1,18 @@
 """Task 5g: a baseline neural network for predicting DRK_YN (1 = drinker).
 
 Run from the project root: python src/neural_network.py --epochs 50
+By default a small grid (PARAM_GRID) is searched on the validation split and the
+candidate with the highest validation average precision is kept; --no-tune
+trains a single model from the command-line settings instead.
 Add --refit to train a fresh model on train + validation for the selected epoch
 count, replaying the selected learning-rate schedule. Preprocessing stays fixed.
 Uses the existing preprocessing and engineered features without fitting another
 scaler. A single hidden layer learns nonlinear feature interactions while keeping
-this baseline small; the deeper network and hyperparameter search belong to task 9.
+this baseline small; the deeper network and its wider random search belong to task 9.
 """
 
 import argparse
+import json
 from copy import deepcopy
 from pathlib import Path
 from time import perf_counter
@@ -19,10 +23,22 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from config import FIGURES_DIR, RANDOM_STATE
+from sklearn.metrics import average_precision_score
+from sklearn.model_selection import ParameterGrid
+
+from config import FIGURES_DIR, RANDOM_STATE, RESULTS_DIR
 from data_pipeline import run_pipeline
-from evaluation import compute_metrics
+from evaluation import compute_metrics, plot_pr_curve, plot_roc_curve
 from plotting import save_figure
+
+# Grid for the baseline, scored on the validation split. Width sets the capacity
+# of the single hidden layer; learning rate and weight decay are the training
+# settings with the most effect. The batch size stays at 1024.
+PARAM_GRID = {
+    "hidden_dim": [64, 128, 256],
+    "learning_rate": [1e-3, 3e-4],
+    "weight_decay": [1e-4, 1e-5],
+}
 
 
 def select_device(name: str = "auto") -> torch.device:
@@ -126,6 +142,7 @@ def fit(
         if not X_train.columns.equals(X_val.columns):
             raise ValueError("Training and validation feature columns must match in order.")
         val_data = make_dataset(X_val, y_val)
+        val_labels = val_data.tensors[1].numpy()
     else:
         if X_val is not None or y_val is not None:
             raise ValueError("Fixed-schedule refit must not receive validation data.")
@@ -182,16 +199,20 @@ def fit(
                 print(f"Refit epoch {epoch:03d}/{epochs}: train loss={train_loss:.4f}, "
                       f"learning rate={epoch_lr:.2g}")
             continue
-        val_loss, _ = predict(model, val_data)
+        val_loss, val_proba = predict(model, val_data)
         if not np.isfinite([train_loss, val_loss]).all():
             raise RuntimeError("Loss became non-finite; check training settings.")
+        # Tracked for the training curves; checkpoints still follow validation loss
+        val_ap = (average_precision_score(val_labels, val_proba)
+                  if len(np.unique(val_labels)) == 2 else float("nan"))
         history.append({
-            "epoch": epoch, "train_loss": train_loss,
-            "val_loss": val_loss, "learning_rate": epoch_lr,
+            "epoch": epoch, "train_loss": train_loss, "val_loss": val_loss,
+            "val_average_precision": val_ap, "learning_rate": epoch_lr,
         })
         if verbose:
             print(f"Epoch {epoch:03d}: train loss={train_loss:.4f}, "
-                  f"validation loss={val_loss:.4f}, learning rate={epoch_lr:.2g}")
+                  f"validation loss={val_loss:.4f}, validation AP={val_ap:.4f}, "
+                  f"learning rate={epoch_lr:.2g}")
         scheduler.step(val_loss)
         if val_loss < best_loss:
             best_loss = val_loss
@@ -298,19 +319,22 @@ def refit_model(
 
 
 def save_training_plots(history: pd.DataFrame, output_dir: Path) -> Path:
-    """Save loss/LR curves and the underlying epoch history for later analysis.
+    """Save loss/AP/LR curves and the underlying epoch history for later analysis.
 
-    Training loss is averaged over batches during updates; validation loss is
-    measured at the end of each epoch with fixed weights.
+    Training loss is averaged over batches during updates; validation loss and
+    average precision are measured at the end of each epoch with fixed weights.
     """
     from matplotlib.figure import Figure
     from matplotlib.backends.backend_agg import FigureCanvasAgg
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    fig = Figure(figsize=(9, 7), layout="constrained")
+    show_ap = "val_average_precision" in history
+    fig = Figure(figsize=(9, 9 if show_ap else 7), layout="constrained")
     FigureCanvasAgg(fig)
-    loss_ax, lr_ax = fig.subplots(2, 1, sharex=True, height_ratios=[3, 1])
+    axes = fig.subplots(3 if show_ap else 2, 1, sharex=True,
+                        height_ratios=[3, 2, 1] if show_ap else [3, 1])
+    loss_ax, lr_ax = axes[0], axes[-1]
     loss_ax.plot(history.epoch, history.train_loss, label="Training (batch average)")
     if "val_loss" in history:
         loss_ax.plot(history.epoch, history.val_loss, label="Validation")
@@ -320,6 +344,12 @@ def save_training_plots(history: pd.DataFrame, output_dir: Path) -> Path:
     loss_ax.set(title="Neural network training", ylabel="Binary cross-entropy")
     loss_ax.legend()
     loss_ax.grid(alpha=0.25)
+    if show_ap:
+        ap_ax = axes[1]
+        ap_ax.plot(history.epoch, history.val_average_precision, color="C1")
+        ap_ax.axvline(best.epoch, linestyle="--", color="gray")
+        ap_ax.set(ylabel="Validation average precision")
+        ap_ax.grid(alpha=0.25)
     lr_ax.step(history.epoch, history.learning_rate, where="post")
     lr_ax.set(xlabel="Epoch", ylabel="Learning rate", yscale="log")
     lr_ax.grid(alpha=0.25)
@@ -344,23 +374,74 @@ def evaluate_model(model: nn.Module, X: pd.DataFrame, y: pd.Series) -> dict:
     }
 
 
+def rank_candidates(table: pd.DataFrame) -> pd.DataFrame:
+    """Best validation average precision first; ties go to the lower validation loss."""
+    return table.sort_values(["val_average_precision", "val_loss"],
+                             ascending=[False, True]).reset_index(drop=True)
+
+
+def tune_model(X_train, y_train, X_val, y_val, *, param_grid=None, **training_options):
+    """Train one baseline per grid point and rank them on the validation split.
+
+    Each candidate keeps its best validation-loss epoch (early stopping), and the
+    candidates are compared on validation average precision. The test set is not
+    an argument, so it cannot influence the choice.
+    Returns (best parameters, ranked table, (model, history, summary) of the best).
+    """
+    if y_val.nunique() != 2:
+        raise ValueError("Average precision tuning requires both classes in validation.")
+    records, runs = [], []
+    grid = list(ParameterGrid(PARAM_GRID if param_grid is None else param_grid))
+    for index, params in enumerate(grid):
+        print(f"\nCandidate {index + 1}/{len(grid)}: {params}", flush=True)
+        model, history, summary = train_model(X_train, y_train, X_val, y_val,
+                                              **params, **training_options)
+        metrics = evaluate_model(model, X_val, y_val)
+        metrics.pop("confusion_matrix")
+        records.append({"candidate": index, **params, **summary,
+                        **{f"val_{name}": value for name, value in metrics.items()}})
+        runs.append((model, history, summary))
+    ranked = rank_candidates(pd.DataFrame(records))
+    best = int(ranked.candidate.iloc[0])
+    return grid[best], ranked, runs[best]
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--refit", action="store_true",
                         help="Refit on train + validation for the selected epoch count.")
+    parser.add_argument("--no-tune", dest="tune", action="store_false",
+                        help="Skip the grid search and train one model from the flags below.")
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=1024)
     parser.add_argument("--hidden-dim", type=int, default=256)
+    parser.add_argument("--learning-rate", type=float, default=1e-3)
+    parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--device", choices=["auto", "cuda", "mps", "cpu"], default="auto")
-    parser.add_argument("--figures-dir", type=Path, default=FIGURES_DIR)
+    parser.add_argument("--figures-dir", type=Path, default=FIGURES_DIR / "neural_network")
+    parser.add_argument("--results-dir", type=Path, default=RESULTS_DIR / "neural_network")
     args = parser.parse_args(argv)
     X_train, X_val, X_test, y_train, y_val, y_test, _ = run_pipeline()
     print(f"Training with {len(X_train):,} rows and {X_train.shape[1]} features.")
-    model, history, summary = train_model(
-        X_train, y_train, X_val, y_val,
-        epochs=args.epochs, batch_size=args.batch_size,
-        hidden_dim=args.hidden_dim, device=args.device,
-    )
+    options = {"epochs": args.epochs, "batch_size": args.batch_size, "device": args.device}
+    if args.tune:
+        params, ranked, (model, history, summary) = tune_model(
+            X_train, y_train, X_val, y_val, **options)
+        args.results_dir.mkdir(parents=True, exist_ok=True)
+        ranked.to_csv(args.results_dir / "tuning.csv", index=False)
+        # Read by advanced_neural_network.py, so its comparison uses the tuned baseline
+        (args.results_dir / "selected_config.json").write_text(
+            json.dumps({**params, "batch_size": args.batch_size}, indent=2) + "\n")
+        columns = [*params, "best_epoch", "val_average_precision", "val_roc_auc",
+                   "val_loss", "training_seconds"]
+        print("\nAll configurations (validation):")
+        print(ranked[columns].round(4).to_string(index=False))
+        print("\nBest parameters:", params)
+    else:
+        params = {"hidden_dim": args.hidden_dim, "learning_rate": args.learning_rate,
+                  "weight_decay": args.weight_decay}
+        model, history, summary = train_model(X_train, y_train, X_val, y_val,
+                                              **params, **options)
     print(f"\nTraining plots saved to: {save_training_plots(history, args.figures_dir)}")
     print("\nTraining summary:", summary)
     print("\nValidation metrics (selection model, before any refit):")
@@ -371,7 +452,8 @@ def main(argv=None):
               f"for {summary['best_epoch']} epochs.")
         model, refit_history, refit_summary = refit_model(
             X_train, y_train, X_val, y_val, selection_history=history,
-            hidden_dim=args.hidden_dim, batch_size=args.batch_size, device=args.device,
+            hidden_dim=params["hidden_dim"], weight_decay=params["weight_decay"],
+            batch_size=args.batch_size, device=args.device,
         )
         path = save_training_plots(refit_history, args.figures_dir / "refit")
         print(f"\nRefit training plots saved to: {path}")
@@ -380,6 +462,11 @@ def main(argv=None):
     print("\nTest metrics" + (" (refitted model):" if args.refit else ":"))
     for metric, value in evaluate_model(model, X_test, y_test).items():
         print(f"  {metric}: {value}")
+    _, proba = predict(model, make_dataset(X_test, y_test))
+    path = plot_roc_curve(y_test, {"Neural network": proba}, args.figures_dir / "roc_curve.png")
+    print(f"\nROC curve saved to {path}")
+    path = plot_pr_curve(y_test, {"Neural network": proba}, args.figures_dir / "pr_curve.png")
+    print(f"Precision-recall curve saved to {path}")
 
 
 if __name__ == "__main__":

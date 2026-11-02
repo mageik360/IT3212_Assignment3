@@ -5,8 +5,8 @@ from sklearn.tree import DecisionTreeClassifier
 
 from config import FIGURES_DIR, RANDOM_STATE
 from data_pipeline import run_pipeline
-from evaluation import compute_metrics, plot_roc_curve
-from tuning import SCORING, results_table, tune_on_validation
+from evaluation import compute_metrics, plot_pr_curve, plot_roc_curve
+from tuning import results_table, tune_on_validation
 
 FIGURE_DIR = FIGURES_DIR / "decision_tree"
 
@@ -26,8 +26,6 @@ def main():
     search = tune_on_validation(
         DecisionTreeClassifier(random_state=RANDOM_STATE), PARAM_GRID,
         X_train, y_train, X_val, y_val,
-        # Select the best tree by validation average precision
-        scoring=[*SCORING, "precision", "average_precision"], refit="average_precision",
     )
     total_time = time.perf_counter() - start
     # refit_time_ is the final training of the best tree on train + validation
@@ -54,6 +52,8 @@ def main():
 
     path = plot_roc_curve(y_test, {"Decision tree": proba}, FIGURE_DIR / "roc_curve.png")
     print(f"\nROC curve saved to {path}")
+    path = plot_pr_curve(y_test, {"Decision tree": proba}, FIGURE_DIR / "pr_curve.png")
+    print(f"Precision-recall curve saved to {path}")
 
 
 if __name__ == "__main__":

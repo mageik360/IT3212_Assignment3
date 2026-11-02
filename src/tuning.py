@@ -4,12 +4,13 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import GridSearchCV, PredefinedSplit
 
-SCORING = ["roc_auc", "accuracy", "f1"]
+# Candidates are selected on average precision; the others are reported alongside
+SCORING = ["average_precision", "roc_auc", "precision", "accuracy", "f1"]
 
 
 def tune_on_validation(
     estimator, param_grid: dict, X_train, y_train, X_val, y_val,
-    *, scoring=SCORING, refit: str = "roc_auc", n_jobs: int = -1, verbose: int = 3,
+    *, scoring=SCORING, refit: str = "average_precision", n_jobs: int = -1, verbose: int = 3,
 ) -> GridSearchCV:
     """
     Grid search over param_grid, scoring each candidate on the fixed validation

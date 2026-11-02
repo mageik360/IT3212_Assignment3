@@ -71,7 +71,7 @@ def test_sampling_and_ranking():
     table = pd.DataFrame(
         {
             "trial": [0, 1, 2],
-            "val_roc_auc": [0.8, 0.9, 0.9],
+            "val_average_precision": [0.8, 0.9, 0.9],
             "val_loss": [0.2, 0.4, 0.3],
         }
     )
@@ -112,6 +112,8 @@ def test_cli_smoke_and_artifacts(data, monkeypatch, tmp_path, mode):
             "cpu",
             "--output-dir",
             str(tmp_path),
+            "--shallow-config",
+            str(tmp_path / "missing.json"),
         ]
     )
     directory = tmp_path / mode

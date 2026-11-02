@@ -22,6 +22,7 @@ def test_training_learns_and_restores_best_validation_epoch():
     )
     loss, probabilities = predict(model, make_dataset(X.iloc[300:], y.iloc[300:]))
     assert loss == pytest.approx(history.val_loss.min())
+    assert history.val_average_precision.between(0, 1).all()
     assert summary["best_epoch"] == history.loc[history.val_loss.idxmin(), "epoch"]
     assert np.all((probabilities >= 0) & (probabilities <= 1))
     metrics = evaluate_model(model, X.iloc[300:], y.iloc[300:])
@@ -131,7 +132,27 @@ def test_cli_refit_evaluation_order(monkeypatch, tmp_path, refit):
 
     monkeypatch.setattr(network, "evaluate_model", evaluate)
     monkeypatch.setattr(network, "refit_model", refit_model)
-    network.main(["--epochs", "2", "--hidden-dim", "4", "--device", "cpu",
-                  "--figures-dir", str(tmp_path)] + (["--refit"] if refit else []))
+    network.main(["--no-tune", "--epochs", "2", "--hidden-dim", "4", "--device", "cpu",
+                  "--figures-dir", str(tmp_path), "--results-dir", str(tmp_path / "results")]
+                 + (["--refit"] if refit else []))
     assert calls == (["validation", "refit", "test"] if refit else ["validation", "test"])
     assert (tmp_path / "refit/neural_network_history.csv").exists() == refit
+
+
+def test_tuning_ranks_candidates_on_validation_average_precision(monkeypatch):
+    import neural_network as network
+
+    X = pd.DataFrame({"a": [-2., -1., 1., 2., -3., 3.]})
+    y = (X.a > 0).astype(int)
+    # Hidden width 8 is made to score best, whatever the actual training does
+    real_evaluate = network.evaluate_model
+    monkeypatch.setattr(network, "evaluate_model", lambda model, X, y: {
+        **real_evaluate(model, X, y),
+        "average_precision": 0.9 if model.layers[0].out_features == 8 else 0.5})
+    params, ranked, (model, history, summary) = network.tune_model(
+        X.iloc[:4], y.iloc[:4], X.iloc[4:], y.iloc[4:],
+        param_grid={"hidden_dim": [4, 8, 16]}, epochs=2, device="cpu", verbose=False)
+    assert params == {"hidden_dim": 8}
+    assert ranked.hidden_dim.iloc[0] == 8 and len(ranked) == 3
+    assert model.layers[0].out_features == 8
+    assert summary["best_epoch"] == history.loc[history.val_loss.idxmin(), "epoch"]

@@ -20,10 +20,10 @@ Run scripts from the project root, e.g. `python src/decision_tree.py`.
 | `data.py` | Loads the raw CSV from `PATH_DATASET` |
 | `data_pipeline.py` | `run_pipeline()` → `X_train, X_val, X_test, y_train, y_val, y_test, state` (stratified 80/10/10) |
 | `preprocessing.py`, `feature_engineering.py` | Cleaning, encoding, scaling, derived features (fitted on train only) |
-| `evaluation.py` | `compute_metrics(y, proba)`, `plot_roc_curve(y, {label: proba}, path)` |
+| `evaluation.py` | `compute_metrics(y, proba)`, `plot_roc_curve(y, {label: proba}, path)`, `plot_pr_curve(...)` |
 | `tuning.py` | `tune_on_validation(estimator, grid, ...)`, `results_table(search)` for sklearn models |
 | `plotting.py` | `save_figure(fig, path)` |
-| `neural_network.py` | Baseline MLP, shared torch helpers and the shared `fit()` training loop |
+| `neural_network.py` | Baseline MLP with a small grid search (`--no-tune` skips it), shared torch helpers and the shared `fit()` training loop |
 | `advanced_neural_network.py` | Deep MLP with random search (`--mode train/tune/compare`) |
 | `decision_tree.py` | Decision tree tuned on the validation split |
 | `logistic_regression.py` | Logistic regression, linear (degree 1) vs polynomial (degree 2) features tuned on the validation split |
@@ -35,7 +35,7 @@ Run scripts from the project root, e.g. `python src/decision_tree.py`.
 ## Conventions for new models
 
 - Get data from `run_pipeline()`; don't preprocess again.
-- Select hyperparameters on the validation split only. Touch the test set once, for the final model.
+- Select hyperparameters on the validation split only, by validation average precision. Touch the test set once, for the final model.
 - sklearn models: tune with `tuning.tune_on_validation`. Exception: `bagging_boosting.py` picks the ensemble size from a validation curve over staged predictions, which needs only one fit per ensemble.
 - Torch models: build the model and optimizer, then call `neural_network.fit`.
 - Score every model with `evaluation.compute_metrics` so results are comparable.

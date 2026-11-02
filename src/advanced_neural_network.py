@@ -14,14 +14,15 @@ Rates and decay are sampled logarithmically because their useful scales span
 orders of magnitude. These ranges are experimental choices, not known optima.
 
 All runs use the existing features and fixed data splits. Checkpoints minimize
-validation BCE; configurations maximize validation ROC AUC (ties: lower BCE).
+validation BCE; configurations maximize validation average precision (ties: lower BCE).
 Test data never enters search. Architecture/training flags such as --dropout
 and --batch-size apply only to train mode; tune/compare use the fixed search
 space. --seed controls model/search randomness, not the fixed data split.
 Compare uses this seed and the next two (42, 43, 44 by default).
 Comparison repeats all three models with matching
 seeds, without selecting the best seed. Seeded runs need not be bitwise identical
-across devices. The shallow baseline retains its original Adam optimizer.
+across devices. The shallow baseline retains its original Adam optimizer and uses
+the configuration selected by neural_network.py (--shallow-config) when present.
 """
 
 import argparse
@@ -71,6 +72,13 @@ class ModelConfig:
 
 
 DEFAULT_CONFIG = ModelConfig()
+# The shallow baseline's untuned settings (see neural_network.train_model)
+SHALLOW_DEFAULTS = {
+    "hidden_dim": 256,
+    "learning_rate": 1e-3,
+    "weight_decay": 1e-4,
+    "batch_size": 1024,
+}
 
 
 class AdvancedNeuralNetwork(nn.Module):
@@ -150,7 +158,7 @@ def sample_configs(trials=30, seed=RANDOM_STATE):
 
 def rank_trials(trials):
     return trials.sort_values(
-        ["val_roc_auc", "val_loss", "trial"], ascending=[False, True, True]
+        ["val_average_precision", "val_loss", "trial"], ascending=[False, True, True]
     ).reset_index(drop=True)
 
 
@@ -190,7 +198,7 @@ def tune_model(
 ):
     """Search API deliberately accepts no test split; return config and table."""
     if y_val.nunique() != 2:
-        raise ValueError("ROC AUC tuning requires both classes in validation.")
+        raise ValueError("Average precision tuning requires both classes in validation.")
     records = []
     configs = sample_configs(trials, seed)
     for index, config in enumerate(configs):
@@ -250,6 +258,12 @@ def main(argv=None):
         type=Path,
         default=RESULTS_DIR / "advanced_neural_network",
     )
+    parser.add_argument(
+        "--shallow-config",
+        type=Path,
+        default=RESULTS_DIR / "neural_network" / "selected_config.json",
+        help="Tuned shallow baseline for compare mode; defaults are used if missing.",
+    )
     parser.add_argument("--hidden-dims", type=int, nargs="+", default=[256, 128, 64])
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument(
@@ -275,7 +289,8 @@ def main(argv=None):
     directory.mkdir(parents=True, exist_ok=True)
     joblib.dump(state, directory / "preprocessing.joblib")
     write_json(
-        directory / "run_settings.json", {**vars(args), "output_dir": str(directory)}
+        directory / "run_settings.json",
+        {**vars(args), "output_dir": str(directory), "shallow_config": str(args.shallow_config)},
     )
     options = {"epochs": args.epochs, "patience": args.patience, "device": args.device}
     if args.mode in {"tune", "compare"}:
@@ -299,12 +314,15 @@ def main(argv=None):
             ("tuned_deep", config),
         ]
         seeds = [args.seed, args.seed + 1, args.seed + 2]
+    shallow_config = dict(SHALLOW_DEFAULTS)
+    if args.shallow_config.exists():
+        shallow_config.update(json.loads(args.shallow_config.read_text()))
     results = []
     # Configuration selection is complete before any test-set evaluation.
     for name, variant in variants:
         for seed in seeds:
             trainer = train_baseline if variant is None else train_model
-            settings = {} if variant is None else {"config": variant}
+            settings = shallow_config if variant is None else {"config": variant}
             model, history, summary = trainer(
                 X_train, y_train, X_val, y_val, random_state=seed, **options, **settings
             )
@@ -312,13 +330,7 @@ def main(argv=None):
             saved_config = (
                 asdict(variant)
                 if variant is not None
-                else {
-                    "hidden_dim": 128,
-                    "batch_size": 1024,
-                    "learning_rate": 1e-3,
-                    "weight_decay": 1e-4,
-                    "optimizer": "Adam",
-                }
+                else {**shallow_config, "optimizer": "Adam"}
             )
             save_run(run_dir, model, history, summary, saved_config, seed)
             metrics = {
@@ -342,6 +354,7 @@ def main(argv=None):
         "recall",
         "f1",
         "roc_auc",
+        "average_precision",
         "training_seconds",
         "inference_seconds",
         "parameter_count",
