@@ -26,8 +26,8 @@ def main():
     search = tune_on_validation(
         DecisionTreeClassifier(random_state=RANDOM_STATE), PARAM_GRID,
         X_train, y_train, X_val, y_val,
-        # Select the best tree by validation precision
-        scoring=[*SCORING, "precision"], refit="precision",
+        # Select the best tree by validation average precision
+        scoring=[*SCORING, "precision", "average_precision"], refit="average_precision",
     )
     total_time = time.perf_counter() - start
     # refit_time_ is the final training of the best tree on train + validation
