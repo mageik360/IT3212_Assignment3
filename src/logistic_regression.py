@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
@@ -44,11 +46,19 @@ def main():
     print("Loading and preprocessing data...", flush=True)
     X_train, X_val, X_test, y_train, y_val, y_test, _ = run_pipeline()
 
+    start = time.perf_counter()
     search = tune_on_validation(
         build_model(), PARAM_GRID, X_train, y_train, X_val, y_val, n_jobs=N_JOBS,
         # Select the best model by validation average precision
         scoring=[*SCORING, "precision", "average_precision"], refit="average_precision",
     )
+    total_time = time.perf_counter() - start
+    # refit_time_ is the final training of the best model on train + validation
+    print(f"\nTuning time: {total_time - search.refit_time_:.1f} s "
+          f"({len(search.cv_results_['params'])} candidates)")
+    print(f"Final training time (best model): {search.refit_time_:.1f} s")
+    print(f"Total time: {total_time:.1f} s")
+
     table = results_table(search).rename(columns=lambda c: c.split("__")[-1])
     print("\nAll configurations (validation):")
     print(table.to_string(index=False))
