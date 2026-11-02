@@ -7,7 +7,7 @@ from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 from config import FIGURES_DIR, RANDOM_STATE
 from data_pipeline import run_pipeline
 from evaluation import compute_metrics, plot_roc_curve
-from tuning import results_table, tune_on_validation
+from tuning import SCORING, results_table, tune_on_validation
 
 FIGURE_DIR = FIGURES_DIR / "logistic_regression"
 
@@ -36,8 +36,8 @@ def build_model() -> Pipeline:
 
 def best_per_degree(table: pd.DataFrame) -> pd.DataFrame:
     """Best validation candidate for each polynomial degree, for the linear-vs-polynomial comparison."""
-    best = table.loc[table.groupby("degree")["val_roc_auc"].idxmax()]
-    return best.assign(overfit_gap=best.train_roc_auc - best.val_roc_auc)
+    best = table.loc[table.groupby("degree")["val_average_precision"].idxmax()]
+    return best.assign(overfit_gap=best.train_average_precision - best.val_average_precision)
 
 
 def main():
@@ -46,13 +46,16 @@ def main():
 
     search = tune_on_validation(
         build_model(), PARAM_GRID, X_train, y_train, X_val, y_val, n_jobs=N_JOBS,
+        # Select the best model by validation average precision
+        scoring=[*SCORING, "precision", "average_precision"], refit="average_precision",
     )
     table = results_table(search).rename(columns=lambda c: c.split("__")[-1])
     print("\nAll configurations (validation):")
     print(table.to_string(index=False))
     print("\nLinear vs polynomial (best C per degree):")
     print(best_per_degree(table)[
-        ["degree", "C", "train_roc_auc", "val_roc_auc", "val_accuracy", "overfit_gap", "fit_time_s"]
+        ["degree", "C", "train_average_precision", "val_average_precision", "val_precision",
+         "val_roc_auc", "val_accuracy", "overfit_gap", "fit_time_s"]
     ].to_string(index=False))
     print("\nBest parameters:", search.best_params_)
 
