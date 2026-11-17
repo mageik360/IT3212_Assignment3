@@ -29,9 +29,10 @@ Run scripts from the project root, e.g. `python src/decision_tree.py`.
 | `decision_tree.py` | Decision tree tuned on the validation split |
 | `logistic_regression.py` | Logistic regression, linear (degree 1) vs polynomial (degree 2) features tuned on the validation split |
 | `bagging_boosting.py` | Tree and logistic regression, each single, boosted (AdaBoost) and bagged; boosting rounds chosen on the validation split (`--models` runs a subset) |
+| `feature_selection.py` | Feature-group ablation: refits with fixed tuned settings without each input group (and the derived features built from it), validation only, paired bootstrap CI for Δ AP (`--models` runs a subset, `--with-nn` adds the shallow network) |
 | `eda.py` | Exploratory analysis, see `EDA.md` |
 
-`classical_models.py`, `ensembles.py`, `feature_selection.py` and `transfer_learning.py` are empty placeholders.
+`classical_models.py`, `ensembles.py` and `transfer_learning.py` are empty placeholders.
 
 ## Conventions for new models
 

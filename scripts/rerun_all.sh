@@ -38,4 +38,6 @@ run neural_network_norefit src/neural_network.py --no-tune $args \
 run bagging_boosting src/bagging_boosting.py || exit 1
 # 30-trial search, then 3 seeds each of the shallow, starting and tuned deep networks
 run advanced_neural_network src/advanced_neural_network.py --mode compare --epochs 50 --trials 30 || exit 1
+# Feature-group ablation (validation only; reads the selected network config above)
+run feature_selection src/feature_selection.py || exit 1
 echo "[$(date '+%F %T')] all done" | tee -a "$LOG_DIR/chain.log"
