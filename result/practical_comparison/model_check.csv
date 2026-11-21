@@ -1,0 +1,5 @@
+model,source,val_average_precision,test_average_precision,reported_test_average_precision
+logreg,trained now (seed 42),0.8263783741948288,0.8227683313452432,
+tree,trained now (seed 42),0.8080438577361839,0.804836230489719,
+shallow_nn,saved seed-42 run (task 9),0.828819406242856,0.8255256384630512,0.8255256384630512
+deep_nn,saved seed-42 run (task 9),0.8292323092656753,0.8261042308366131,0.8261042308366131

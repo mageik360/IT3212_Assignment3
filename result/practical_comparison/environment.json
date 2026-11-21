@@ -1,0 +1,61 @@
+{
+  "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+  "processor": "",
+  "cpu_count": 12,
+  "python": "3.14.4",
+  "torch": "2.15.0+cu132",
+  "sklearn": "1.9.1",
+  "cuda_gpu": "NVIDIA GeForce RTX 5070",
+  "mps_available": false,
+  "arguments": {
+    "parts": [
+      "threshold",
+      "timing"
+    ],
+    "models": [
+      "logreg",
+      "tree",
+      "shallow_nn",
+      "deep_nn"
+    ],
+    "targets": [
+      0.8,
+      0.85,
+      0.9
+    ],
+    "n_bootstrap": 1000,
+    "repeats": 3,
+    "inference_repeats": 5,
+    "epochs": 50,
+    "device": "auto",
+    "output_dir": "/home/magnus-eik/Cursor/IT3212/IT3212_Assignment3/result/practical_comparison"
+  },
+  "tree_settings": {
+    "criterion": "gini",
+    "max_depth": 24,
+    "min_samples_leaf": 400
+  },
+  "logreg_settings": {
+    "poly__degree": 2,
+    "clf__C": 0.01
+  },
+  "shallow_settings": {
+    "hidden_dim": 256,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "batch_size": 1024
+  },
+  "deep_settings": {
+    "hidden_dims": [
+      256,
+      256,
+      128,
+      64
+    ],
+    "dropout": 0.3,
+    "batch_norm": true,
+    "learning_rate": 0.0011005626471339775,
+    "weight_decay": 0.0013271381209008215,
+    "batch_size": 1024
+  }
+}
