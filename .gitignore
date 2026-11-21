@@ -27,3 +27,7 @@ __pycache__/
 figures/
 # Console output from runs
 logs/
+
+# Overleaf report (separate git repo, synced with git.overleaf.com)
+report/
+report_current.pdf
