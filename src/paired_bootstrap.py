@@ -2,9 +2,15 @@
 
 Run from the project root, after `python src/practical_comparison.py --parts threshold`:
     python src/paired_bootstrap.py
+and for the ensembles of task 7, after `python src/bagging_boosting.py`:
+    python src/paired_bootstrap.py --inputs result/bagging_boosting/probabilities.npz \
+        --output-dir result/paired_bootstrap/ensembles
 
-Reuses the test probabilities saved by practical_comparison.py, so nothing is
-retrained. Every model is scored on the same bootstrap resamples of the test
+Reuses saved test probabilities, so nothing is retrained. Only the comparisons
+whose two models are both in the inputs are made. Each ensemble is compared with
+the single model from its own run: the fits are not bit-identical across
+machines, so files from different runs are only combined when the models they
+share agree. Every model is scored on the same bootstrap resamples of the test
 rows, and the 95% interval of each difference between two models is taken from
 the per-resample differences. Because the models make correlated errors on the
 same people, this interval is much narrower than one built from each model's
@@ -27,12 +33,18 @@ from config import RANDOM_STATE, RESULTS_DIR
 from evaluation import compute_metrics
 from feature_selection import bootstrap_ap, bootstrap_counts
 
-INPUT = RESULTS_DIR / "practical_comparison" / "probabilities.npz"
+INPUTS = [RESULTS_DIR / "practical_comparison" / "probabilities.npz"]
 RESULT_DIR = RESULTS_DIR / "paired_bootstrap"
-MODELS = ["logreg", "tree", "shallow_nn", "deep_nn"]
+MODELS = ["logreg", "tree", "shallow_nn", "deep_nn",
+          "tree_boosting", "tree_bagging", "logreg_boosting", "logreg_bagging"]
 # (a, b): the difference is a - b
 PAIRS = [("shallow_nn", "logreg"), ("deep_nn", "logreg"), ("deep_nn", "shallow_nn"),
-         ("logreg", "tree"), ("shallow_nn", "tree")]
+         ("logreg", "tree"), ("shallow_nn", "tree"),
+         # Task 7: each ensemble against its single model, and the best tree ensemble
+         # against logistic regression
+         ("tree_boosting", "tree"), ("tree_bagging", "tree"),
+         ("logreg_boosting", "logreg"), ("logreg_bagging", "logreg"),
+         ("tree_bagging", "logreg")]
 METRICS = ["average_precision", "roc_auc", "accuracy", "precision", "recall", "false_positives"]
 N_BOOTSTRAP = 1000
 THRESHOLD = 0.5
@@ -122,9 +134,38 @@ def paired_bootstrap(y_true, probas: dict, pairs, n_bootstrap: int,
     return pd.DataFrame(models), pd.DataFrame(differences)
 
 
+def load_probabilities(paths) -> tuple[np.ndarray, dict[str, np.ndarray]]:
+    """Test labels and probabilities from one or more saved files.
+
+    All files must hold the same test rows. A model found in several files must
+    have the same probabilities in each, which checks that the runs match.
+    """
+    y_test, probas = None, {}
+    for path in paths:
+        if not Path(path).exists():
+            print(f"Skipping {path} (not found)")
+            continue
+        saved = np.load(path)
+        if y_test is None:
+            y_test = saved["y_test"]
+        elif not np.array_equal(y_test, saved["y_test"]):
+            raise ValueError(f"{path} holds different test rows")
+        for name in MODELS:
+            key = f"{name}_test"
+            if key not in saved:
+                continue
+            if name in probas and not np.allclose(probas[name], saved[key], atol=1e-6):
+                raise ValueError(f"{name} differs between the saved files; "
+                                 "run them separately with --inputs and --output-dir")
+            probas.setdefault(name, saved[key])
+    if y_test is None:
+        raise FileNotFoundError("None of the input files exist")
+    return y_test, probas
+
+
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--input", type=Path, default=INPUT)
+    parser.add_argument("--inputs", type=Path, nargs="+", default=INPUTS)
     parser.add_argument("--output-dir", type=Path, default=RESULT_DIR)
     parser.add_argument("--n-bootstrap", type=int, default=N_BOOTSTRAP)
     args = parser.parse_args(argv)
@@ -135,9 +176,7 @@ def parse_args(argv=None) -> argparse.Namespace:
 
 def main(argv=None):
     args = parse_args(argv)
-    saved = np.load(args.input)
-    y_test = saved["y_test"]
-    probas = {name: saved[f"{name}_test"] for name in MODELS if f"{name}_test" in saved}
+    y_test, probas = load_probabilities(args.inputs)
     pairs = [(a, b) for a, b in PAIRS if a in probas and b in probas]
     print(f"Paired bootstrap over {len(y_test):,} test rows, {args.n_bootstrap} resamples, "
           f"models: {', '.join(probas)}", flush=True)

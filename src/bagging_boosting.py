@@ -3,6 +3,7 @@
 Run from the project root:
     python src/bagging_boosting.py
     python src/bagging_boosting.py --models logreg logreg_bagging   # a subset
+    python src/bagging_boosting.py --output-dir result/bagging_boosting_rerun  # keep the saved run
 
 Each base model from task 5 (decision tree, degree 2 logistic regression) is
 fitted three ways: once on its own, boosted with AdaBoost and bagged with
@@ -34,6 +35,7 @@ of task 9 covers that model family separately.
 """
 
 import argparse
+from pathlib import Path
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Callable
@@ -271,18 +273,37 @@ def plot_validation_curves(results: list[Result], path):
     return save_figure(fig, path)
 
 
-def save_results(results: list[Result]) -> pd.DataFrame:
+def save_results(results: list[Result], result_dir=None) -> pd.DataFrame:
     """Write metrics and validation curves; rows of models not run this time are kept."""
-    RESULT_DIR.mkdir(parents=True, exist_ok=True)
+    result_dir = result_dir or RESULT_DIR
+    result_dir.mkdir(parents=True, exist_ok=True)
     table = pd.DataFrame([r.row for r in results])
-    path = RESULT_DIR / "metrics.csv"
+    path = result_dir / "metrics.csv"
     if path.exists():
         previous = pd.read_csv(path)
         table = pd.concat([previous[~previous.model.isin(table.model)], table], ignore_index=True)
     table.to_csv(path, index=False)
     for r in results:
-        r.curve.to_csv(RESULT_DIR / f"curve_{r.model.name}.csv", index=False)
+        r.curve.to_csv(result_dir / f"curve_{r.model.name}.csv", index=False)
     return table
+
+
+def save_probabilities(results: list[Result], y_test, result_dir=None):
+    """Test probabilities at the selected ensemble size, for paired comparisons later.
+
+    Saved as <model>_test next to y_test; models not run this time are kept.
+    """
+    result_dir = result_dir or RESULT_DIR
+    path = result_dir / "probabilities.npz"
+    arrays = {}
+    if path.exists():
+        previous = np.load(path)
+        if np.array_equal(previous["y_test"], np.asarray(y_test)):
+            arrays = {key: previous[key] for key in previous.files}
+    arrays.update({f"{r.model.name}_test": r.test_proba for r in results})
+    arrays["y_test"] = np.asarray(y_test)
+    np.savez_compressed(path, **arrays)
+    return path
 
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -290,6 +311,8 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--models", nargs="+", choices=names, default=names,
                         help="Models to run (default: all six)")
+    parser.add_argument("--output-dir", type=Path, default=None,
+                        help="Write results and figures here instead of the default folders")
     return parser.parse_args(argv)
 
 
@@ -301,19 +324,22 @@ def main(argv=None):
     results = [run(model, X_train, y_train, X_val, y_val, X_test, y_test)
                for model in build_models() if model.name in args.models]
 
-    table = save_results(results)
+    result_dir = args.output_dir or RESULT_DIR
+    figure_dir = args.output_dir / "figures" if args.output_dir else FIGURE_DIR
+    table = save_results(results, result_dir)
+    print(f"Test probabilities saved to {save_probabilities(results, y_test, result_dir)}")
     columns = ["model", "n_used", "val_average_precision", "val_roc_auc", "test_roc_auc",
                "test_accuracy", "test_precision", "test_recall", "fit_time_s"]
     print("\nSummary (all saved runs):")
     print(table[columns].round(4).to_string(index=False))
 
-    path = plot_validation_curves(results, FIGURE_DIR / "validation_curves.png")
+    path = plot_validation_curves(results, figure_dir / "validation_curves.png")
     print(f"\nValidation curves saved to {path}")
     for base in dict.fromkeys(r.model.base for r in results):
         probas = {r.model.label: r.test_proba for r in results if r.model.base == base}
-        path = plot_roc_curve(y_test, probas, FIGURE_DIR / f"roc_curve_{base}.png")
+        path = plot_roc_curve(y_test, probas, figure_dir / f"roc_curve_{base}.png")
         print(f"ROC curve saved to {path}")
-        path = plot_pr_curve(y_test, probas, FIGURE_DIR / f"pr_curve_{base}.png")
+        path = plot_pr_curve(y_test, probas, figure_dir / f"pr_curve_{base}.png")
         print(f"Precision-recall curve saved to {path}")
 
 

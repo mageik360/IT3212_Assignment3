@@ -28,10 +28,10 @@ Run scripts from the project root, e.g. `python src/decision_tree.py`.
 | `advanced_neural_network.py` | Deep MLP with random search (`--mode train/tune/compare`) |
 | `decision_tree.py` | Decision tree tuned on the validation split |
 | `logistic_regression.py` | Logistic regression, linear (degree 1) vs polynomial (degree 2) features tuned on the validation split |
-| `bagging_boosting.py` | Tree and logistic regression, each single, boosted (AdaBoost) and bagged; boosting rounds chosen on the validation split (`--models` runs a subset) |
+| `bagging_boosting.py` | Tree and logistic regression, each single, boosted (AdaBoost) and bagged; boosting rounds chosen on the validation split; saves test probabilities for `paired_bootstrap.py` (`--models` runs a subset, `--output-dir` writes elsewhere) |
 | `feature_selection.py` | Feature-group ablation: refits with fixed tuned settings without each input group (and the derived features built from it), validation only, paired bootstrap CI for Δ AP (`--models` runs a subset, `--with-nn` adds the shallow network) |
 | `practical_comparison.py` | Task 10 revision: threshold chosen on validation for a target precision and evaluated on test (precision, recall, share placed, bootstrap CI), and repeated fit/inference timing with fixed boundaries (`--parts threshold`/`timing`, `--repeats`) |
-| `paired_bootstrap.py` | Task 5 revision: paired bootstrap CIs over test rows for the differences between models (AP, ROC-AUC, accuracy, precision, recall, false positives), from the probabilities saved by `practical_comparison.py`; no retraining |
+| `paired_bootstrap.py` | Task 5 revision: paired bootstrap CIs over test rows for the differences between models (AP, ROC-AUC, accuracy, precision, recall, false positives), from the probabilities saved by `practical_comparison.py`, or by `bagging_boosting.py` for the task 7 ensembles (`--inputs`); no retraining |
 | `feature_effects.py` | Task 4 revision: total effect of each original feature on the degree 2 logistic regression (interquartile or category change per test person, through derived features, squares and interactions) |
 | `eda.py` | Exploratory analysis, see `EDA.md` |
 

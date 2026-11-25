@@ -79,3 +79,17 @@ def test_bagging_boosting_main_dry_run(splits, monkeypatch, tmp_path, capsys):
     # Rerunning a subset replaces only those rows
     bagging_boosting.main(["--models", "tree"])
     assert len(pd.read_csv(tmp_path / "results" / "metrics.csv")) == 6
+    saved = np.load(tmp_path / "results" / "probabilities.npz")
+    assert {f"{m.name}_test" for m in bagging_boosting.build_models()} <= set(saved.files)
+    assert saved["tree_test"].shape == saved["y_test"].shape
+
+
+def test_output_dir_leaves_default_folders_alone(splits, monkeypatch, tmp_path):
+    monkeypatch.setattr(bagging_boosting, "run_pipeline", lambda: (*splits, None))
+    monkeypatch.setattr(bagging_boosting, "FIGURE_DIR", tmp_path / "figures")
+    monkeypatch.setattr(bagging_boosting, "RESULT_DIR", tmp_path / "results")
+    bagging_boosting.main(["--models", "tree", "--output-dir", str(tmp_path / "rerun")])
+    assert not (tmp_path / "results").exists() and not (tmp_path / "figures").exists()
+    assert (tmp_path / "rerun" / "metrics.csv").exists()
+    assert (tmp_path / "rerun" / "figures" / "validation_curves.png").exists()
+    assert "tree_test" in np.load(tmp_path / "rerun" / "probabilities.npz").files

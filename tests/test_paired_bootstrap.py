@@ -52,6 +52,21 @@ def test_main_writes_tables(scores, tmp_path):
     y, p, q = scores
     path = tmp_path / "probabilities.npz"
     np.savez(path, y_test=y, logreg_test=p, tree_test=q)
-    pb.main(["--input", str(path), "--output-dir", str(tmp_path / "out"), "--n-bootstrap", "20"])
+    ensembles = tmp_path / "ensembles.npz"
+    np.savez(ensembles, y_test=y, tree_test=q, tree_bagging_test=(p + q) / 2)
+    pb.main(["--inputs", str(path), str(ensembles), str(tmp_path / "missing.npz"),
+             "--output-dir", str(tmp_path / "out"), "--n-bootstrap", "20"])
     diffs = pd.read_csv(tmp_path / "out" / "paired_differences.csv")
-    assert set(zip(diffs.model_a, diffs.model_b)) == {("logreg", "tree")}
+    assert set(zip(diffs.model_a, diffs.model_b)) == {
+        ("logreg", "tree"), ("tree_bagging", "tree"), ("tree_bagging", "logreg")}
+
+
+def test_files_must_agree(scores, tmp_path):
+    y, p, q = scores
+    np.savez(tmp_path / "a.npz", y_test=y, tree_test=p)
+    np.savez(tmp_path / "b.npz", y_test=y, tree_test=q)
+    with pytest.raises(ValueError, match="differs"):
+        pb.load_probabilities([tmp_path / "a.npz", tmp_path / "b.npz"])
+    np.savez(tmp_path / "c.npz", y_test=1 - y, logreg_test=p)
+    with pytest.raises(ValueError, match="test rows"):
+        pb.load_probabilities([tmp_path / "a.npz", tmp_path / "c.npz"])
