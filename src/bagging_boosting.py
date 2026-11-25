@@ -29,6 +29,17 @@ by adding members, so all members are used, and its validation curve only shows
 where the gain levels off. Test scores therefore differ slightly from task 5,
 where the final models were refitted on train + validation.
 
+Test set uncertainty is quantified with a bootstrap: the test rows are
+resampled with replacement N_BOOTSTRAP times and ROC AUC and average precision
+are recomputed on each resample, giving a standard error and a 95% percentile
+interval per model. Every model is scored on the same resamples, so the interval
+of each ensemble's difference from its single base model is paired. It covers
+only sampling noise in the test set, not variation from retraining with other
+seeds or data splits, so a narrow interval is not evidence of zero variance.
+The test probabilities are also saved (probabilities.npz), so that
+paired_bootstrap.py can add threshold metrics and comparisons across base
+models without refitting.
+
 The neural network is not ensembled. It is already a flexible, low-bias model
 (little for boosting to remove), each fit is expensive, and the deep network
 of task 9 covers that model family separately.
@@ -52,7 +63,9 @@ from sklearn.tree import DecisionTreeClassifier
 
 from config import FIGURES_DIR, RANDOM_STATE, RESULTS_DIR
 from data_pipeline import run_pipeline
-from evaluation import compute_metrics, plot_pr_curve, plot_roc_curve
+from evaluation import (
+    bootstrap_scores, bootstrap_summary, compute_metrics, plot_pr_curve, plot_roc_curve,
+)
 from logistic_regression import N_JOBS as LOGREG_N_JOBS
 from logistic_regression import build_model as build_logreg
 from plotting import save_figure
@@ -77,6 +90,9 @@ TREE_ROUNDS = 200
 TREE_MEMBERS = 100
 LOGREG_ROUNDS = 10
 LOGREG_MEMBERS = 10
+
+# Bootstrap resamples of the test set for the confidence intervals
+N_BOOTSTRAP = 1000
 
 BASE_LABELS = {"tree": "Decision tree", "logreg": "Logistic regression"}
 
@@ -273,16 +289,39 @@ def plot_validation_curves(results: list[Result], path):
     return save_figure(fig, path)
 
 
-def save_results(results: list[Result], result_dir=None) -> pd.DataFrame:
-    """Write metrics and validation curves; rows of models not run this time are kept."""
-    result_dir = result_dir or RESULT_DIR
-    result_dir.mkdir(parents=True, exist_ok=True)
-    table = pd.DataFrame([r.row for r in results])
-    path = result_dir / "metrics.csv"
+def merge_saved(table: pd.DataFrame, path) -> pd.DataFrame:
+    """Write table to path, keeping saved rows of models not in table."""
     if path.exists():
         previous = pd.read_csv(path)
         table = pd.concat([previous[~previous.model.isin(table.model)], table], ignore_index=True)
     table.to_csv(path, index=False)
+    return table
+
+
+def bootstrap_intervals(results: list[Result], y_test) -> pd.DataFrame:
+    """Bootstrap intervals on the test set; each ensemble is compared with its single base model.
+
+    The resamples depend only on the seed and the test size, so rows from
+    earlier runs of other models stay comparable.
+    """
+    scores = bootstrap_scores(y_test, {r.model.name: r.test_proba for r in results},
+                              n_boot=N_BOOTSTRAP, seed=RANDOM_STATE)
+    singles = {r.model.base: r.model.name for r in results if r.model.method == "single"}
+    reference = {r.model.name: singles.get(r.model.base) for r in results if r.model.method != "single"}
+    table = bootstrap_summary(scores, reference)
+    estimates = {(r.model.name, metric): r.row[f"test_{metric}"] for r in results for metric in table.metric.unique()}
+    table.insert(2, "estimate", [estimates[key] for key in zip(table.model, table.metric)])
+    return table
+
+
+def save_results(results: list[Result], intervals: pd.DataFrame | None = None,
+                 result_dir=None) -> pd.DataFrame:
+    """Write metrics, bootstrap intervals and validation curves; rows of models not run this time are kept."""
+    result_dir = result_dir or RESULT_DIR
+    result_dir.mkdir(parents=True, exist_ok=True)
+    table = merge_saved(pd.DataFrame([r.row for r in results]), result_dir / "metrics.csv")
+    if intervals is not None:
+        merge_saved(intervals, result_dir / "bootstrap_ci.csv")
     for r in results:
         r.curve.to_csv(result_dir / f"curve_{r.model.name}.csv", index=False)
     return table
@@ -326,12 +365,16 @@ def main(argv=None):
 
     result_dir = args.output_dir or RESULT_DIR
     figure_dir = args.output_dir / "figures" if args.output_dir else FIGURE_DIR
-    table = save_results(results, result_dir)
+    print(f"\nBootstrapping the test set ({N_BOOTSTRAP} resamples)...", flush=True)
+    intervals = bootstrap_intervals(results, y_test)
+    table = save_results(results, intervals, result_dir)
     print(f"Test probabilities saved to {save_probabilities(results, y_test, result_dir)}")
     columns = ["model", "n_used", "val_average_precision", "val_roc_auc", "test_roc_auc",
                "test_accuracy", "test_precision", "test_recall", "fit_time_s"]
     print("\nSummary (all saved runs):")
     print(table[columns].round(4).to_string(index=False))
+    print(f"\nTest set 95% bootstrap intervals (this run, {N_BOOTSTRAP} resamples):")
+    print(intervals.round(4).to_string(index=False))
 
     path = plot_validation_curves(results, figure_dir / "validation_curves.png")
     print(f"\nValidation curves saved to {path}")

@@ -64,6 +64,7 @@ def test_bagging_boosting_main_dry_run(splits, monkeypatch, tmp_path, capsys):
     for name in ["TREE_ROUNDS", "TREE_MEMBERS", "LOGREG_ROUNDS", "LOGREG_MEMBERS"]:
         monkeypatch.setattr(bagging_boosting, name, 3)
     monkeypatch.setattr(bagging_boosting, "LOGREG_N_JOBS", 1)
+    monkeypatch.setattr(bagging_boosting, "N_BOOTSTRAP", 20)
 
     bagging_boosting.main([])
     out = capsys.readouterr().out
@@ -72,6 +73,9 @@ def test_bagging_boosting_main_dry_run(splits, monkeypatch, tmp_path, capsys):
     table = pd.read_csv(tmp_path / "results" / "metrics.csv")
     assert list(table.model) == [m.name for m in bagging_boosting.build_models()]
     assert (table.n_used <= table.n_members).all()
+    ci = pd.read_csv(tmp_path / "results" / "bootstrap_ci.csv")
+    assert len(ci) == 6 * 2 and (ci.ci_low <= ci.ci_high).all()
+    assert set(ci.dropna(subset=["reference"]).reference) == {"tree", "logreg"}
     for name in ["validation_curves.png", "roc_curve_tree.png", "roc_curve_logreg.png",
                  "pr_curve_tree.png", "pr_curve_logreg.png"]:
         assert (tmp_path / "figures" / name).read_bytes().startswith(b"\x89PNG")
@@ -88,8 +92,10 @@ def test_output_dir_leaves_default_folders_alone(splits, monkeypatch, tmp_path):
     monkeypatch.setattr(bagging_boosting, "run_pipeline", lambda: (*splits, None))
     monkeypatch.setattr(bagging_boosting, "FIGURE_DIR", tmp_path / "figures")
     monkeypatch.setattr(bagging_boosting, "RESULT_DIR", tmp_path / "results")
+    monkeypatch.setattr(bagging_boosting, "N_BOOTSTRAP", 20)
     bagging_boosting.main(["--models", "tree", "--output-dir", str(tmp_path / "rerun")])
     assert not (tmp_path / "results").exists() and not (tmp_path / "figures").exists()
     assert (tmp_path / "rerun" / "metrics.csv").exists()
+    assert (tmp_path / "rerun" / "bootstrap_ci.csv").exists()
     assert (tmp_path / "rerun" / "figures" / "validation_curves.png").exists()
     assert "tree_test" in np.load(tmp_path / "rerun" / "probabilities.npz").files

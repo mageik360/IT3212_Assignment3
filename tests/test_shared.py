@@ -10,7 +10,9 @@ from sklearn.tree import DecisionTreeClassifier
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import config
-from evaluation import compute_metrics, plot_pr_curve, plot_roc_curve
+from evaluation import (
+    bootstrap_scores, bootstrap_summary, compute_metrics, plot_pr_curve, plot_roc_curve,
+)
 from plotting import save_figure
 from tuning import results_table, tune_on_validation
 
@@ -143,3 +145,23 @@ def test_logistic_regression_main_dry_run(splits, monkeypatch, tmp_path, capsys)
     assert "Linear vs polynomial" in out and "Test metrics:" in out
     assert (tmp_path / "roc_curve.png").read_bytes().startswith(b"\x89PNG")
     assert (tmp_path / "pr_curve.png").read_bytes().startswith(b"\x89PNG")
+
+
+def test_bootstrap_intervals_cover_estimate_and_pair_models():
+    rng = np.random.default_rng(0)
+    y = rng.integers(0, 2, 500)
+    good = np.clip(y * 0.6 + rng.normal(0.2, 0.25, 500), 0, 1)
+    probas = {"good": good, "same": good.copy(), "noise": rng.random(500)}
+    scores = bootstrap_scores(y, probas, n_boot=200, seed=1)
+    assert len(scores) == 200 * 3
+    # Same seed gives the same resamples
+    assert scores.equals(bootstrap_scores(y, probas, n_boot=200, seed=1))
+
+    summary = bootstrap_summary(scores, {"same": "good", "noise": "good"}).set_index(["model", "metric"])
+    row = summary.loc[("good", "roc_auc")]
+    assert row.ci_low < roc_auc_score(y, good) < row.ci_high and row.se > 0
+    # Identical models differ by exactly 0 on every paired resample
+    assert summary.loc[("same", "average_precision"), "diff_ci_high"] == 0
+    # Random scores are clearly worse: the whole interval is below 0
+    assert summary.loc[("noise", "roc_auc"), "diff_ci_high"] < 0
+    assert np.isnan(summary.loc[("good", "roc_auc"), "diff_mean"])
